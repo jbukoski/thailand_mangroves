@@ -1,6 +1,0 @@
----
-title: "Data analysis"
-author: "Jacob J. Bukoski"
-date: "March 12, 2018"
-output: html_document
----

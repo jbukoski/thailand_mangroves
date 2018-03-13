@@ -1,0 +1,42 @@
+---
+title: "Data analysis"
+author: "Jacob J. Bukoski"
+date: "March 12, 2018"
+output: html_document
+---
+
+#### Load necessary libraries
+
+```{r, message=FALSE}
+
+library(tidyverse)
+library(readxl)
+
+```
+
+#### Load in the data
+
+Specify data paths
+
+```{r}
+
+krabi_path = "./data/krabi_data.xlsx"
+nakorn_path = "./data/nakorn_data.xlsx"
+
+```
+
+Load in excel sheet data as list and rename list items
+
+```{r}
+
+krabi_list <- lapply(excel_sheets(krabi_path), read_excel, path = krabi_path)
+names(krabi_list) <- (excel_sheets("./data/krabi_data.xlsx"))
+
+nakorn_list <- lapply(excel_sheets(nakorn_path), read_excel, path = nakorn_path)
+names(nakorn_list) <- (excel_sheets("./data/nakorn_data.xlsx"))
+
+```
+
+#### 
+
+
