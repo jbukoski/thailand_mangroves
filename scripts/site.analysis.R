@@ -12,6 +12,7 @@ setwd("~/Dropbox/mangrove-work/data")
 library("xlsx")
 library("ggplot2")
 library("lmfor")
+library("tidyverse")
 
 #------------------------------------------------------------------------------
 #Interactive prompt to import the data for each site; if this works, can adjust later 
@@ -75,10 +76,34 @@ read <- function() {
 read()
 
 #------------------------------------------------------------------------------
+# Clean up the dataset.
+
+trees <- all.trees
+
+source("/home/jbukoski/manuscripts/thailand_stocks/thailand_mangroves/scripts/helper_funcs.R")
+
+colnames(trees) <- tolower(colnames(trees))
+
+trees <- trees %>% 
+  id_taxon(trees$species) %>%
+  mutate(sps_code = paste0(substr(genus, 1, 2), substr(species, 1, 2)))
+
+
+#------------------------------------------------------------------------------
 #Calculate above-ground biomass using species-specific allometric equations; where species-specific
 #equations are not available, used Komiyama et al 2005 general equation with species specific wood
 #densities
-  
+
+source("/home/jbukoski/manuscripts/thailand_stocks/thailand_mangroves/scripts/allometry.R")
+
+test_trees <- trees %>%
+  left_join(allom_lookup, by = c("sps_code" = "sps_code")) %>%
+  mutate(params = map2(dbh.cm, density, list)) %>%
+  mutate(agb = invoke_map_dbl(ag_form, params))
+
+#-------
+#old code
+
 trees <- all.trees;
   
   ag.biomass = rep(0,nrow(trees))
