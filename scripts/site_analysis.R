@@ -90,164 +90,50 @@ trees <- trees %>%
 
 
 #------------------------------------------------------------------------------
-#Calculate above-ground biomass using species-specific allometric equations; where species-specific
-#equations are not available, used Komiyama et al 2005 general equation with species specific wood
-#densities
+# Calculate above-ground biomass using species-specific allometric equations. 
+# Where species-specific equations are not available, used Komiyama et al 2005 
+# general equation with species specific wood densities
 
 source("/home/jbukoski/manuscripts/thailand_stocks/thailand_mangroves/scripts/allometry.R")
 
-test_trees <- trees %>%
+trees <- trees %>%
   left_join(allom_lookup, by = c("sps_code" = "sps_code")) %>%
   mutate(params = map2(dbh.cm, density, list)) %>%
-  mutate(agb = invoke_map_dbl(ag_form, params))
+  mutate(agb = invoke_map_dbl(ag_form, params)) %>%
+  mutate(bgb = invoke_map_dbl(bg_form, params)) %>%
+  mutate(biomass = agb + bgb)
 
-#-------
-#old code
-
-trees <- all.trees;
+head(trees)  #Check to see if ag.biomass values are calculated
   
-  ag.biomass = rep(0,nrow(trees))
-  leaf.biomass = rep(0,nrow(trees))
-  prop.biomass = rep(0,nrow(trees))
-  trees = trees[,1:13]
-  trees = cbind(trees,ag.biomass,leaf.biomass,prop.biomass)
-  head(trees)
+#------------------------------------------------------------------------------------
+# Adjust ag.biomass variable based on Status variable
   
-  attach(trees)
+trees$top.diam = rep(0, nrow(trees))
+trees$stump.vol = rep(0, nrow(trees))
   
-  for(k in 1:nrow(trees)) #have to adjust this to remove rows with NA (excel read in extra lines)
-    if(Species[k] == "AA") #Avicennia alba, general equation w/ AA density
-    {trees$ag.biomass[k] = 0.251*0.506*((DBH.cm[k])^2.46)} else
-      if(Species[k] == "AC") #Aegiceras corniculatum, Tam et al "total aerial" equation
-      {trees$ag.biomass[k] = 0.280*((DBH.cm[k]^2*Height.m[k])^0.693)} else # Equation from Ren et al. 2010
-        if(Species[k] == "AM") #Avicennia marina, 2 equations!
-        {trees$ag.biomass[k] = 0.1848*((DBH.cm[k])^2.3524)} else
-        # {trees$ag.biomass[k] = 10^(-0.7506+2.2990*(log(DBH.cm[k], base=10)))}  #Clough et al. 1997 (for VN sites)
-          if(Species[k] == "AO") #Avicennia officinalis, general equation
-          {trees$ag.biomass[k] = 0.251*0.670*((DBH.cm[k])^2.46)} else
-            if(Species[k] == "BC") #Bruguiera cylindrica, general equation w/ BC density
-            {trees$ag.biomass[k] = 0.251*0.749*((DBH.cm[k])^2.46)} else
-              if(Species[k] == "BG") #Bruguiera gymnorrhiza, gen. equation w/ BG density
-              {trees$ag.biomass[k] = 0.251*0.699*((DBH.cm[k])^2.46)} else
-                if(Species[k] == "BP") #Bruguiera parviflora, where is this from?
-                {trees$ag.biomass[k] = 10^(-0.7045+2.5336*(log10(DBH.cm[k])))} else
-                  if(Species[k] == "BS") #Bruguiera sexangula, gen. equation w/ BG density
-                  {trees$ag.biomass[k] = 0.251*0.808*((DBH.cm[k])^2.46)} else
-                    if(Species[k] == "EA") #Excoecaria agallocha; Note: eq. from Hossain et al, 2015
-                    {trees$ag.biomass[k] = exp(1)^(1.0996*(log((DBH.cm[k])^2))-0.8572)} else
-                      if(Species[k] == "KO") #Kandelia obovata, Khan equation using height and diameter
-                      {trees$ag.biomass[k] = 0.251*0.525*((DBH.cm[k])^2.46)} else
-                        #{trees$ag.biomass[k] = 3.203*(10^-2)*((DBH.cm[k]^2*Height.m[k])^1.058)} else
-                        if(Species[k] == "LR") #Lumnitzera racemosa, general equation using diam
-                        # {trees$ag.biomass[k] = 1.788+(2.529*(log(DBH.cm[k], base=10)))} else
-                        {trees$ag.biomass[k] = 1.184+(DBH.cm[k])^2.384} else  #Kangkuso et al. 2015
-                          if(Species[k] == "RA") #Rhizophora apiculata (Ong 2004, total AGB)
-                          {trees$ag.biomass[k] = exp(1)^((2.318*log(DBH.cm[k])) - 1.671)} else
-                          # trees$leaf.biomass[k] = 10^(-1.8571+(2.1072*(log(DBH.cm[k],base=10))))} else
-                            if(Species[k] == "RM") #Rhizophora mucronata, gen equation w/ RM density
-                            {trees$ag.biomass[k] = 0.251*0.701*((DBH.cm[k])^2.46)} else
-                              if(Species[k] == "RS") #Rhizophora stylosa, Clough et al 1997; Australia
-                              {trees$ag.biomass[k] = 10^(-0.6564+2.4292*(log(DBH.cm[k], base=10)))} else
-                                if(Species[k] == "SC") #Sonneratia caseolaris, Komiyama et al 2005 generic
-                                {trees$ag.biomass[k] = 0.251*0.340*((DBH.cm[k])^2.46)} else
-                                  if(Species[k] == "SH") #Scyphiphora hydrophyllacea; general equation
-                                  {trees$ag.biomass[k] = 0.251*0.9*((DBH.cm[k])^2.46)} else
-                                    if(Species[k] == "SO") #Shorea obtusa, Komiyama et al 2005 general
-                                    {trees$ag.biomass[k] = 0.251*0.850*((DBH.cm[k])^2.46)} else
-                                      if(Species[k] == "XG") #Xylocarpus granatum, gen equation w/ XG density
-                                      {trees$ag.biomass[k] = 0.251*0.528*((DBH.cm[k])^2.46)} else 
-                                        if(Species[k] == "XM") #Xylocarpus moluccensis, gen eq. w/ XM density
-                                        {trees$ag.biomass[k] = 0.251*0.531*((DBH.cm[k])^2.46)}
+for(k in 1:nrow(trees))
+  if(is.na(trees$status[k]) == "TRUE") {
+    trees$ag.biomass.new[k] = trees$ag.biomass[k]
+    } else if(trees$status[k] == "1") {
+      trees$ag.biomass.new[k] = 0.95*trees$ag.biomass[k]
+      } else if(trees$status[k] == "2") { 
+        #Reduce biomass by 5% for loss of leaves
+        trees$ag.biomass.new[k] = 0.8*trees$ag.biomass[k]
+        } else if(trees$status[k] == "3" & is.na(trees$base.cm[k])=="FALSE" & trees$height.m[k] >= 1.37) {
+          #Reduce biomass by 20% for loss of branches
+          trees$top.diam[k] = trees$base.cm[k]-((100*trees$height.m[k])*((trees$base.cm[k]-trees$dbh.cm[k])/137))
+          trees$stump.vol[k] = ((pi*100*trees$height.m[k])/12)*(trees$base.cm[k]^2+trees$top.diam[k]^2+(trees$base.cm[k]*trees$top.diam[k]))
+          trees$ag.biomass.new[k] = (0.69*trees$stump.vol[k])/1000
+          } else if(trees$status[k] == "3" & is.na(trees$base.cm[k])=="FALSE" & trees$height.m[k] < 1.37) {
+            #Using wood density of large CWD from K&D 2012
+            trees$top.diam[k] = trees$base.cm[k]-((100*trees$height.m[k])*((trees$base.cm[k]-trees$dbh.cm[k])/(100*trees$height.m[k])))
+            trees$stump.vol[k] = ((pi*100*trees$height.m[k])/12)*(trees$base.cm[k]^2+trees$top.diam[k]^2+(trees$base.cm[k]*trees$top.diam[k]))
+            trees$ag.biomass.new[k] = (0.69*trees$stump.vol[k])/1000
+            }
   
-  # for(k in 1:nrow(trees))
-  #   if(Species[k] == "RA" & DBH.cm[k] <= 5)
-  #   {trees$prop.biomass[k] = 0.101*trees$ag.biomass[k]} else
-  #     if(Species[k] == "RA" & DBH.cm[k] > 5 & DBH.cm[k] <= 10)
-  #     {trees$prop.biomass[k] = 0.204*trees$ag.biomass[k]} else
-  #       if(Species[k] == "RA" & DBH.cm[k] > 10 & DBH.cm[k] <= 15)
-  #       {trees$prop.biomass[k] = 0.356*trees$ag.biomass[k]} else
-  #         if(Species[k] == "RA" & DBH.cm[k] > 15 & DBH.cm[k] <= 20)
-  #         {trees$prop.biomass[k] = 0.273*trees$ag.biomass[k]} else
-  #           if(Species[k] == "RA" & DBH.cm[k] > 20)
-  #           {trees$prop.biomass[k] = 0.210*trees$ag.biomass[k]}
-  # 
-  # for(k in 1:nrow(trees))
-  #   if(Species[k] == "RA")
-  #   {trees$ag.biomass[k] = trees$ag.biomass[k] + trees$leaf.biomass[k] + trees$prop.biomass[k]}
-  #             
-  # rm(ag.biomass, leaf.biomass, prop.biomass)  #Clean things up, rm empty vectors
-  head(trees)  #Check to see if ag.biomass values are calculated
-  
-  #------------------------------------------------------------------------------------
-  # Adjust ag.biomass variable based on Status variable
-  
-  trees$top.diam = rep(0, nrow(trees))
-  trees$stump.vol = rep(0, nrow(trees))
-  
-  for(k in 1:nrow(trees))
-    if(is.na(Status[k]) == "TRUE")
-    {trees$ag.biomass.new[k] = trees$ag.biomass[k]} else
-      if(Status[k] == "1")
-      {trees$ag.biomass.new[k] = 0.95*trees$ag.biomass[k]} else #Reduce biomass by 5% for loss of leaves
-        if(Status[k] == "2")
-        {trees$ag.biomass.new[k] = 0.8*trees$ag.biomass[k]} else  #Reduce biomass by 20% for loss of branches
-          if(Status[k] == "3" & is.na(Base.cm[k])=="FALSE" & Height.m[k] >= 1.37)
-            {trees$top.diam[k] = Base.cm[k]-((100*Height.m[k])*((Base.cm[k]-DBH.cm[k])/137))
-            trees$stump.vol[k] = ((pi*100*Height.m[k])/12)*
-              (Base.cm[k]^2+top.diam[k]^2+(Base.cm[k]*top.diam[k]))
-            trees$ag.biomass.new[k] = (0.69*trees$stump.vol[k])/1000} else
-            if(Status[k] == "3" & is.na(Base.cm[k])=="FALSE" & Height.m[k] < 1.37)
-              {trees$top.diam[k] = Base.cm[k]-((100*Height.m[k])*((Base.cm[k]-DBH.cm[k])/(100*Height.m[k])))
-              trees$stump.vol[k] = ((pi*100*Height.m[k])/12)*
-                  (Base.cm[k]^2+top.diam[k]^2+(Base.cm[k]*top.diam[k]))
-              trees$ag.biomass.new[k] = (0.69*trees$stump.vol[k])/1000} #Using wood density of large CWD from K&D 2012
-  
-  trees$ag.biomass = trees$ag.biomass.new
-  trees = trees[,1:14]
-  head(trees)
-  
-  #-------------------------------------------------------------------------------
-  # Calculate belowground biomass using Komiyama's general equation 
-  # and species specific wood densities; *NOTE: C content of roots lower than AG parts, should
-  # multiply by 39% to convert biomass to C content; densities taken from the Global Wood Density 
-  # Database; multiple values are averaged from SE Asia; KO not available - averaged across KC
-  
-  #manually enter species wood densities here, **none available for KO at the moment
-  sps = rbind("AA", "AM", "AO", "BC", "BG", "BP", "BS", "EA", "KO", "LR", "RA", "RM", "RS", "SH", "SC", "SO", "XG", "XM")
-  densities = c((0.56+0.67+0.53)/3, 0.650, (0.59+0.62)/2, 0.720, (0.66+0.76)/2, (0.74+0.78)/2, 0.740, 
-                (0.39+0.48+0.379)/3, (0.512+0.460+0.557+0.57)/4, 0.710, 0.85, (0.74+0.82+0.904)/3, 
-                0.84,0.9,(0.387+0.390)/2, 0.850, (0.557+0.525+0.62)/3, 0.611)
-  sps.densities= as.data.frame(cbind(sps,densities))
-  colnames(sps.densities)=c("Species", "Density")
-  sps.densities$Density = as.numeric(as.character(sps.densities$Density))
-  
-  #-------------------------------------------------------------------------------
-  #Create a vector to be filled with the belowground biomass data; uses Komiyama et al general equation 
-  #with species densities
-  
-  bg.biomass <- rep(0, nrow(trees))   
-  trees <- cbind(trees, bg.biomass)
-  
-  #Adjust levels of trees data frame to match levels of species densities; avoids error below
-  trees$Species = factor(trees$Species, 
-                         levels=levels(sps.densities$Species))
-  
-  trees <- trees %>%
-    left_join(sps.densities, by = "Species") %>%
-    mutate(bg.biomass = ifelse(Species == "KO", 0.745*(ag.biomass^0.810), 
-                              ifelse(Species == "RA", 0.00698*(DBH.cm^2.61), 
-                                    ifelse(Species == "RS", 10^(-0.583*(log10(DBH.cm)^1.86)), 0.199*(Density^0.899)*(DBH.cm^2.22))))) %>%
-    mutate(ag.biomass = round(ag.biomass, 2), bg.biomass = round(bg.biomass, 2))
-  
-  rm(bg.biomass)
-  
-  #-------------------------------------------------------------------------------
-  #Create a vector for total biomass; sum of ag.biomass and bg.biomass
-  
-  trees <- trees %>%
-    mutate(biomass = ag.biomass + bg.biomass)
-  
-  head(trees)
+trees$ag.biomass = trees$ag.biomass.new
+trees = trees[ ,1:14]
+head(trees)
   
   #-------------------------------------------------------------------------------
   #Calculate the biomass of saplings
