@@ -48,12 +48,21 @@ rhap_bg_ong2004 <- function(dbh, dens) {
   ## multiple equations for total belowground biomass dependent upon DBH
   
   if(dbh >= 15) {
-    exp(1)^((2.611)*log(dbh) - 3.454)
+    exp(1)^(2.611*log(dbh) - 3.454)
   } else {
-  exp(1)^((1.522)*log(dbh) - 1.707)
+    exp(1)^(1.522*log(dbh) - 1.707)
   }
-  
+
 }
+
+rhap_prop_ong2004 <- function(dbh, dens) {
+
+  if(dbh >= 15) {
+    exp(1)^(2.546*log(dbh) - 2.94)
+  }
+
+}
+
 
 # Rhizophora stylosa, Comley et al., 2005 (Australia)
 

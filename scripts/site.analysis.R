@@ -415,12 +415,13 @@ trees <- all.trees;
   #Repeating here for small CWD
   
   small.cts = aggregate(Small ~ Plot, data=cwd, sum)
-  small.volume = rep(0,nrow(small.cts)); small.mass = rep(0, nrow(small.cts))
-  small.cts=cbind(small.cts,small.volume,small.mass)
+  small.volume = rep(0,nrow(small.cts)); 
+  small.mass = rep(0, nrow(small.cts))
+  small.cts=cbind(small.cts, small.volume, small.mass)
   
   for(k in 1:nrow(small.cts))
-    {small.cts$small.volume[k]=pi^2*((small.cts$Small[k]*(cwd.params$Small[2]^2))/(8*3*20))
-      small.cts$small.mass[k]=small.cts$small.volume[k]*cwd.params$Small[1]}
+    {small.cts$small.volume[k] = pi^2*((small.cts$Small[k]*(cwd.params$Small[2]^2))/(8*3*20))
+      small.cts$small.mass[k] = small.cts$small.volume[k]*cwd.params$Small[1]}
   
   #Repeating here for medium CWD
   
