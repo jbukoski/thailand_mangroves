@@ -21,8 +21,7 @@ library("tidyverse")
 #NOTE: NEED TO ADJUST TOTAL HA FOR VIETNAMESE SITES - PLACE FILLED WITH 1,000,000 sq m
 
 read <- function() {
-  ANSWER = readline("Which site would you like to analyze? \n
-                    Select one of: krabi, nakorn, nam_dinh, hai_phong, quang_ninh: ")
+  ANSWER = readline("Which site would you like to analyze? Select one of: krabi, nakorn, nam_dinh, hai_phong, quang_ninh: ")
   if(ANSWER == "krabi")
   {cat("Okay, loading the Krabi (Thailand) data...\n")
     all.trees <<- read.xlsx("krabi_data.xlsx", sheetName="Trees", header=T);
@@ -30,8 +29,12 @@ read <- function() {
     seedlings <<- read.xlsx("krabi_data.xlsx", sheetName="Seedlings", header=T);
     soil <<- read.xlsx("krabi_data.xlsx", sheetName="Soil", header=T);
     cwd <<- read.xlsx("krabi_data.xlsx", sheetName="CWD", header=T)
-    plot.size<<-5*(7^2)*pi; subplot.size<<-5*(2^2)*pi;sampled.area<<-plot.size*7; 
-    sub.sampled.area<<-subplot.size*7; N<<-102120000; site<<-"Krabi";
+    plot.size <<- 5*(7^2)*pi; 
+    subplot.size <<- 5*(2^2)*pi;
+    sampled.area <<- plot.size*7; 
+    sub.sampled.area <<- subplot.size*7; 
+    N <<- 102120000; 
+    site <<- "Krabi";
     cat("...loaded!")} else
       if (ANSWER == "nakorn")
       {cat("Okay, loading the Nakorn Si Thammarat (Thailand) data...\n");
@@ -80,6 +83,7 @@ read()
 
 source("/home/jbukoski/manuscripts/thailand_stocks/thailand_mangroves/scripts/helper_funcs.R")
 source("/home/jbukoski/manuscripts/thailand_stocks/thailand_mangroves/scripts/allometry.R")
+source("/home/jbukoski/Dropbox/mangrove-work/model-files/Function-SummarySE.R")
 
 #------------------------------------------------------------------------------
 # Clean up the dataset.
@@ -91,7 +95,7 @@ trees <- trees %>%
   id_taxon(trees$species) %>%
   mutate(sps_code = paste0(substr(genus, 1, 2), substr(species, 1, 2)),
          basal_area = 0.00007854*dbh.cm^2) %>%
-  dplyr::select(-genus, -species, everything())
+  dplyr::select(-genus, -species)
 
 #------------------------------------------------------------------------------
 # Calculate above-ground biomass using species-specific allometric equations. 
@@ -129,7 +133,6 @@ trees <- trees %>%
 # Compute sapling biomass
 
 saps = saplings
-
 colnames(saps) <- tolower(colnames(saps))
 
 saps <- saps %>% 
@@ -156,8 +159,6 @@ saps <- saps %>%
   dplyr::select(-ag_form, - bg_form, - ag_ref, 
                 - bg_ref, -params)
 
-head(saps)
-  
 #-------------------------------------------------------------------------------
 #Calculate biomass for the coarse-woody debris pool based on default mean diameters
 #and densities given in the Kauffman and Donato protocols
@@ -195,8 +196,6 @@ summary_cwd <- new_cwd %>%
   dplyr::group_by(plot) %>%
   dplyr::mutate(plot_mass = sum(mass))
 
-head(summary_cwd)
-  
 #-------------------------------------------------------------------------------
 #Obtain estimate of biomass per hectare based on all plots
 
@@ -212,7 +211,6 @@ trees_ci <- trees %>%
                    moe = 100*((se_tau_cap * t_val)/(N / 10000))/mean_biomass/1000
                    )
 
-trees_ci
 #-------------------------------------------------------------------------------
 #Obtain estimate of biomass per hectare based on all plots
 
@@ -228,14 +226,10 @@ saps_ci <- saps %>%
                    moe = 100*((se_tau_cap * t_val)/(N / 10000))/mean_biomass/1000
   )
 
-saps_ci
-
 #-------------------------------------------------------------------------------
 # Classify each plot by species
-# At plot level, incorporate frequency metric
-# At subplot level, do not incorporate frequency metric
 
-# Species metrics at the plot level, does not include frequency
+# Species metrics at the plot level
 
 plot_sps <- trees %>%
   group_by(plot) %>%
@@ -268,127 +262,30 @@ subplot_sps <- trees %>%
   select(plot, subplot, genus, species, rel_sps_ba, rel_sps_n, rel_imp) %>%
   arrange(plot, subplot, -rel_imp)
 
-
-
-test <- subplot_sps %>%
-  filter(plot == 2, subplot == 1) %>%
-  ggplot(aes(rel_imp ~ species)) +
-  geom_bar()
-
-#------------------------------------------------------------------------------
-#Calculate relative frequency for each species within each plot
-#Frequency is defined as presence of a species within a plot
-
-f = aggregate(Species ~ Subplot + Plot, data = trees, 
-              FUN=function(x) paste(unique(x), collapse=', '))
-
-n.plot = length(levels(as.factor(trees$Plot)))
-n.subplot = length(levels(as.factor(trees$Subplot)))
-n.sps = length(levels(as.factor(trees$Species)))
-
-a=matrix(0, nrow(f), n.sps)
-colnames(a) = levels(trees$Species)
-freq = as.data.frame(cbind(f, a))
-
-counts = freq[,4:ncol(freq)]
-
-Species = as.factor(trees$Species)
-
-freq[-(1:3)] = sapply(colnames(freq[-(1:3)]), grepl, x=freq$Species  ) + 0
-
-colnames(a) = as.character(levels(trees$Species))
-sums = a
-
-Plot = levels(as.factor(trees$Plot))
-plot.sums = rowsum(freq[,c(4:ncol(freq))], group = freq$Plot)
-rel.sums = (100*(plot.sums/as.numeric(n.subplot)))
-plot.sums = cbind(Plot,rel.sums)
-
-sps.freqs = sps.stems[,1:2]
-
-Rel.Freq = rep(0,nrow(sps.freqs)); 
-sps.freqs = cbind(sps.freqs,Rel.Freq)
-
-for(j in 1:nrow(plot.sums))
-  for(k in 1:ncol(plot.sums))
-    for(l in 1:nrow(sps.freqs))
-      if(plot.sums$Plot[j] == sps.freqs$Plot[l] &&
-           colnames(plot.sums[k]) == sps.freqs$Species[l])
-      {sps.freqs$Rel.Freq[l] = plot.sums[j,k]}
-
-head(sps.freqs)
-#------------------------------------------------------------------------------
-#Combine relative basal area, relative stem density, and relative 
-#frequency to compute the relative importance value
-
-stems.species = as.character(sps.stems$Species)
-
-rel.imp = sps.stems[,1:2]
-rel.imp = cbind(rel.imp, round(sps.BAs$rel.basal.area,1), 
-                round(sps.stems$rel.stems,1), round(sps.freqs$Rel.Freq,1))
-
-attach(rel.imp)
-
-importance = (rel.imp[,3]  + rel.imp[,4] + rel.imp[,5])/3
-
-rel.imp = cbind(rel.imp, round(importance,1))
-
-colnames(rel.imp) = c("Species", "Plot", "Rel.BA", 
-                      "Rel.Stems", "Rel.Freq", "Rel.Importance")
-
-rel.imp
-
-##NOTE: Figure out how to sort the rel.imp data frame by rel.imp. 
-##End goal is to print both first AND second most important species
-
-#------------------------------------------------------------------------------
-#Append the species name to the importance value pulled for each of the plots
-
-attach(rel.imp)
-
-imp.values = aggregate(Rel.Importance ~ Plot, data=rel.imp, max)
-Species = rep(0,nrow(imp.values))
-imp.values = cbind(imp.values,Species)
-
-for(k in 1:nrow(imp.values)) {
-    for(j in 1:nrow(rel.imp)) {
-  if(imp.values$Rel.Importance[k] == rel.imp$Rel.Importance[j])
-  imp.values$Species[k] = as.character(rel.imp$Species[j])}}
-
 #-----------------------------------------------------------------------------------------------
 #Soil analysis
 
-attach(soil)
-soil.c = as.data.frame(cbind(Plot, Subplot, Interval, Int.A, Int.B,
-                             round(Avg.depth, 1), round(Bulk.density,2), Percent.C))
-soil.c$Plot = as.numeric(soil.c$Plot)
-soil.c$C.density = as.numeric(Bulk.density*(Percent.C/100))
+names(soil) <- tolower(names(soil))
+names(soil) <- gsub('[.]', '_', names(soil))
 
-soil.c$int.volume = ((Int.B/100)-(Int.A/100))*10000
+soil <- soil %>%
+  mutate(c_dens = bulk_density*(percent_c/100),
+         int_volume = ifelse(interval == 5, ((avg_depth/100) - (100/100))*10000, ((int_b/100) - (int_a/100))*10000),
+         soc_per_ha = int_volume * c_dens)
 
-# Calculate the depth of the bottom-most interval and apply the fifth c.density value to it
+soil_summary <- soil %>%
+  group_by(plot, subplot) %>%
+  dplyr::mutate(plot_c = sum(soc_per_ha)) %>%
+  group_by(plot) %>%
+  dplyr::summarize(mean_plot_c = mean(plot_c))
 
-for(k in 1:nrow(soil.c))
-    if(Interval[k] == 4)
-    {soil.c$int.volume[k] = ((0.5)*10000)} else
-      if(Interval[k] == 5) 
-      {soil.c$int.volume[k] = ((Avg.depth[k]/100) - (100/100))*10000} else
-      {soil.c$int.volume[k] = ((Int.B[k]/100)-(Int.A[k]/100))*10000}
+soil_summary
 
-soil.c$C.per.ha = soil.c$int.volume*soil.c$C.density
-head(soil.c)
 
-subplot.soil.c = aggregate(C.per.ha ~ Subplot + Plot, data = soil.c, FUN="sum")
-plot.soil.c = aggregate(C.per.ha ~ Plot, data=subplot.soil.c, FUN="mean")
 
-head(plot.soil.c)
 
-## Source the SummarySE function (borrowed from: 
-##    http://www.cookbook-r.com/Graphs/Plotting_means_and_error_bars_%28ggplot2%29/)
 
-source("~/Dropbox/mangrove-work/model-files/Function-SummarySE.R")
-
-plot.soil.summary = summarySE(subplot.soil.c, measurevar="C.per.ha", groupvars=c("Plot"))
+plot.soil.summary = summarySE(subplot.soil.c, measurevar="C.per.ha", groupvars=c("plot"))
 
 ggplot(plot.soil.summary, aes(x=Plot, y=C.per.ha)) + 
   geom_errorbar(aes(ymin=C.per.ha-se, ymax=C.per.ha+se), width=.1) + geom_point() + 
@@ -425,6 +322,3 @@ if(exists("total.summary") == F) {total.summary = summary} else
 #Summarize the data by dominant genera
 
 sps.summary <- aggregate(. ~ Dom.Sps, data=summary, FUN="mean")
-
-#-----------------------------------------------------------------------------------------------
-
