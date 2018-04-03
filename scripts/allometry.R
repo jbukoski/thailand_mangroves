@@ -63,7 +63,7 @@ allom_lookup <- allom_lookup %>%
           bg_form = c(general_bg_komiyama2005),
           ag_ref = "khan????", bg_ref = "komiyama2005") %>%
   add_row(genus = "lumnitzera", species = "racemosa", sps_code = "lura", density = 0.710,
-          ag_form = c(function(dbh, dens){1.184+(DBH.cm[k])^2.384}), 
+          ag_form = c(function(dbh, dens){1.184+(dbh)^2.384}), 
           bg_form = c(general_bg_komiyama2005), 
           ag_ref = "kangkuso2015", bg_ref = "komiyama2005") %>%
   add_row(genus = "rhizophora", species = "apiculata", sps_code = "rhap", density = 0.850,
@@ -79,6 +79,10 @@ allom_lookup <- allom_lookup %>%
           bg_form = c(rhst_bg_comley2005), 
           ag_ref = "comley2005", bg_ref = "comley2005") %>%
   add_row(genus = "sonneratia", species = "caseolaris", sps_code = "soca", density = 0.389,
+          ag_form = c(general_ag_komiyama2005), 
+          bg_form = c(general_bg_komiyama2005), 
+          ag_ref = "komiyama2005", bg_ref = "komiyama2005") %>%
+  add_row(genus = "sonneratia", species = "ovata", sps_code = "soov", density = 0.850,
           ag_form = c(general_ag_komiyama2005), 
           bg_form = c(general_bg_komiyama2005), 
           ag_ref = "komiyama2005", bg_ref = "komiyama2005") %>%

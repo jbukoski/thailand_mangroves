@@ -11,6 +11,8 @@ output: html_document
 
 library(tidyverse)
 library(readxl)
+library(reticulate)
+library(raster)
 
 ```
 
@@ -27,7 +29,7 @@ nakorn_path = "./data/nakorn_data.xlsx"
 
 Load in excel sheet data as list and rename list items
 
-```{r}
+```{r, eval=FALSE}
 
 krabi_list <- lapply(excel_sheets(krabi_path), read_excel, path = krabi_path)
 names(krabi_list) <- (excel_sheets("./data/krabi_data.xlsx"))
@@ -39,4 +41,37 @@ names(nakorn_list) <- (excel_sheets("./data/nakorn_data.xlsx"))
 
 #### 
 
+```{r}
 
+py_run_string("
+
+import ee
+ee.Initialize()
+
+image = ee.Image('srtm90_v4')
+path = image.getDownloadUrl({
+    'scale': 30,
+    'crs': 'EPSG:4326',
+    'region': '[[-120, 35], [-119, 35], [-119, 34], [-120, 34]]'
+})
+
+print(path)
+
+")
+```
+
+```{r}
+
+#downloads the data as a zip file
+
+download.file(py$path, "./ee_dat.zip")
+unzip("./ee_dat.zip")
+
+```
+
+
+```{r}
+
+test_dat <- raster("srtm90_v4.elevation.tif")
+
+```
