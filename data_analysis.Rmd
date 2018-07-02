@@ -1,0 +1,80 @@
+---
+title: "Data analysis"
+author: "Jacob J. Bukoski"
+date: "March 12, 2018"
+output: html_document
+---
+
+#### Load necessary libraries
+
+```{r, message=FALSE}
+
+library(tidyverse)
+library(readxl)
+library(reticulate)
+library(raster)
+
+```
+
+#### Load in the data
+
+Specify data paths
+
+```{r}
+
+in_dir <- "/home/jbukoski/research/data/thailand_stocks/input/"
+out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
+
+krabi_path = paste0(in_dir, "krabi_data.xlsx")
+nakorn_path = paste0(in_dir, "nakorn_data.xlsx")
+
+```
+
+Load in excel sheet data as list and rename list items
+
+```{r, eval=FALSE}
+
+krabi_list <- lapply(excel_sheets(krabi_path), read_excel, path = krabi_path)
+names(krabi_list) <- (excel_sheets(krabi_path))
+
+nakorn_list <- lapply(excel_sheets(nakorn_path), read_excel, path = nakorn_path)
+names(nakorn_list) <- (excel_sheets(nakorn_path))
+
+```
+
+#### 
+
+```{r}
+
+py_run_string("
+
+import ee
+ee.Initialize()
+
+image = ee.Image('srtm90_v4')
+path = image.getDownloadUrl({
+    'scale': 30,
+    'crs': 'EPSG:4326',
+    'region': '[[-120, 35], [-119, 35], [-119, 34], [-120, 34]]'
+})
+
+print(path)
+
+")
+```
+
+```{r}
+
+#downloads the data as a zip file
+
+download.file(py$path, "./ee_dat.zip")
+unzip("./ee_dat.zip")
+
+```
+
+
+```{r}
+
+test_dat <- raster("srtm90_v4.elevation.tif")
+
+```
