@@ -44,7 +44,7 @@ colnames(trees) <- tolower(gsub("[.]", "_", colnames(trees)))
 trees <- trees %>% 
   id_taxon(trees$species) %>%
   mutate(sps_code = paste0(substr(genus, 1, 2), substr(species, 1, 2)),
-         basal_area = 0.00007854 * dbh_cm^2) %>%
+         basal_area = pi * (dbh_cm/100/2)^2) %>%
   dplyr::select(-genus, -species)
 
 #------------------------------------------------------------------------------
@@ -252,6 +252,60 @@ subplot_sps <- trees %>%
   dplyr::select(site, plot, subplot, genus, species, rel_sps_ba, rel_sps_n, rel_imp) %>%
   arrange(plot, subplot, -rel_imp)
 
+#----------------------------------------------------------------------------------------------
+#Summarize forest structure
+
+plot_structure <- trees %>%
+  group_by(site, plot) %>%
+  dplyr::summarise(n = n(), 
+                   ba = sum(basal_area),
+                   dbh = mean(dbh_cm),
+                   min_dbh = min(dbh_cm),
+                   max_dbh = max(dbh_cm)) %>%
+  mutate(plot_size = plot_size,
+         ba_per_ha = 10000*ba/plot_size,
+         dbh_per_ha = dbh,
+         n_per_ha = 10000*n/plot_size)
+
+site_structure <- plot_structure %>%
+  group_by(site) %>%
+  dplyr::summarise(
+    n = mean(n_per_ha),
+    n_se = sd(n_per_ha) / sqrt(n_distinct(n)),
+    ba = mean(ba_per_ha),
+    ba_se = sd(ba_per_ha) / sqrt(n_distinct(ba_per_ha)),
+    dbh = mean(dbh_per_ha),
+    dbh_se = sd(dbh_per_ha) / sqrt(n_distinct(dbh_per_ha))
+  )
+  
+trees %>%
+  group_by(site) %>%
+  ggplot() +
+  geom_histogram(aes(x = dbh_cm, fill = site), stat = "bin", binwidth = 1) +
+  facet_grid(site ~ .) +
+  theme_bw() +
+  labs(x = "DBH (cm)", y = "Frequency") +
+  theme(text = element_text(size = 22)) +
+  scale_fill_discrete(name = "Site")
+  
+
+plot_structure %>%
+  select(site, plot, ba_per_ha, dbh_per_ha, n_per_ha) %>%
+  mutate(n_per_ha = n_per_ha/100) %>%
+  gather(key, value, -site, -plot) %>%
+  mutate(key = factor(key, labels = c("BA (sq.m/ha)", "Avg. DBH (cm)", "Trees/ha (100s)"))) %>%
+  arrange(site, key) %>%
+  ggplot(aes(x = site, group = site, y = value, fill = site)) +
+  stat_boxplot(geom='errorbar', width = 1) +
+  geom_boxplot() +
+  facet_grid(key ~ .) +
+  theme_bw() +
+  coord_flip() +
+  scale_fill_discrete(name = NULL) +
+  theme(legend.position="bottom") +
+  labs(x = NULL, y = NULL) +
+  theme(text = element_text(size = 24))
+  
 #-----------------------------------------------------------------------------------------------
 #Soil analysis
 
@@ -374,9 +428,18 @@ p1 <- summary %>%
                                  "Soil Organic Carbon")) +
   theme(text = element_text(size = 22))
 
-p1 +  geom_linerange(aes(x = test_dat$site,
-                         ymin = test_dat$min_err, 
-                         ymax = test_dat$max_err))
+p1 +  
+  geom_linerange(aes(x = test_dat$site,
+                     ymin = test_dat$min_err, 
+                     ymax = test_dat$max_err)) +
+  geom_segment(aes(x = 0.95, xend = 1.05, y = -888.9 - 53.41, yend = -888.9 - 53.41)) +
+  geom_segment(aes(x = 0.95, xend = 1.05, y = 72.3  + 18.88, yend = 72.3  + 18.88)) +
+  geom_segment(aes(x = 1.95, xend = 2.05, 
+                   y = -39.9 - 251 - 18 - 8.17, 
+                   yend = -39.9 - 251 - 18 - 8.17)) +
+  geom_segment(aes(x = 1.95, xend = 2.05, 
+                   y = 108 + 8.10 + 23.2 + 2.85, 
+                   yend = 108 + 8.10 + 23.2 + 2.85))
 
 #-----------------------------------------------------------------------------------
 # Build a summary table for visualizations of the data at the subplot level 
@@ -396,15 +459,25 @@ sp_summary <- trees %>%
   dplyr::select(site, plot, subplot, agb_tot, agb_ha, bgb_tot, bgb_ha, soc, tot_c, distance, n_sps) %>%
   distinct()
 
-## THIS IS NOT VALID
+trees %>%
+  filter(plot <= 7) %>%
+  group_by(site, plot) %>%
+  summarize(n = n(),
+            agb_se = sd(agb)/sqrt(n) * 0.43,
+            agb = 10000*sum(agb)/plot_size/1000 * 0.43,
+            bgb_se = sd(bgb)/sqrt(n) * 0.43,
+            bgb = 10000*sum(bgb)/plot_size/1000 * 0.43) %>%
+  ggplot(aes(x = plot, y = agb + bgb, col = site)) + 
+  geom_point(size = 3) + 
+  geom_errorbar(aes(ymin = agb + bgb - agb_se - bgb_se, 
+                    ymax = agb + bgb + agb_se + bgb_se), width = 0.15,
+                size = 1.1) + 
+  labs(y = "Biomass Carbon (Mg C/ha)",
+       x = "Plot") +
+  theme_bw() +
+  theme(text = element_text(size = 24)) +
+  scale_colour_discrete(name="Site", 
+                        labels = c("Krabi", "Nakorn"))
 
-sp_summary %>%
-  #filter(site == "Nakorn") %>%
-  ggplot(aes(distance, soc, col = site)) +
-  geom_point(aes(col = site)) +
-  facet_grid(. ~ site)
 
-lm_dat <- sp_summary %>%
-  filter(site == "Nakorn", !is.na(soc))
-
-lm_soc <- lm(soc ~ distance, data = lm_dat)
+            
