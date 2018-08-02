@@ -281,13 +281,12 @@ site_structure <- plot_structure %>%
 trees %>%
   group_by(site) %>%
   ggplot() +
-  geom_histogram(aes(x = dbh_cm, fill = site), stat = "bin", binwidth = 1) +
+  geom_histogram(aes(x = dbh_cm, fill = site), stat = "bin", binwidth = 1, colour = "black") +
   facet_grid(site ~ .) +
   theme_bw() +
   labs(x = "DBH (cm)", y = "Frequency") +
   theme(text = element_text(size = 22)) +
   scale_fill_discrete(name = "Site")
-  
 
 plot_structure %>%
   select(site, plot, ba_per_ha, dbh_per_ha, n_per_ha) %>%
