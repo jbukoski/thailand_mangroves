@@ -31,8 +31,19 @@ id_taxon <- function(df, species_code) {
 
 }
 
+# A helper function to remove speckling
 
-test_df <- tibble(sps = c("AA", "AM", "AA", "AA", "RM", "AO"))
-
-id_taxon(test_df, test_df$sps)
+rm_speckling <- function(raster, speckle_size, dir) {
+  rclump <- clump(raster, directions = dir)
+  clumpFreq <- as.data.frame(freq(rclump))
+  drop_idx <- clumpFreq$value[which(clumpFreq$count < speckle_size)]
+  
+  rclumpSieve <- rclump
+  rclumpSieve[rclump %in% drop_idx] <- NA
+  
+  mat <- matrix(c(NA, NA, 0, -Inf, Inf, 1), ncol = 3, byrow = TRUE)
+  rast <- reclassify(rclumpSieve, mat)
+  
+  return(rast)
+}
 
