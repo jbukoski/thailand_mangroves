@@ -25,7 +25,7 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 year <- "2015_"
 site <- "krabi_"
 split <- 0.6     # specify percentage to be used for training
-seed <- 04021989
+seed <- round(runif(1, 1, 100000))
 
 #----------------------
 # Load in data
