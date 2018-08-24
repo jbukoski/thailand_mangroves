@@ -1,4 +1,5 @@
 ### Produces a water mask for the Krabi region
+## This is just a change
 
 library(e1071)
 library(getlandsat)
