@@ -1,6 +1,8 @@
 # Script for outputting SVM classification of tasselled cap transformation
 # of Landsat data
 
+# Input files are preprocessed landsat images (see lsat_preproceesing.R)
+
 library(e1071)
 library(RStoolbox)
 library(raster)
@@ -22,25 +24,34 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 #----------------------
 # Adjust the below values to output the correct datasets
 
-year <- "2015_"
+year_train <- "2007_"
+year_valid <- NULL
 site <- "krabi_"
-split <- 0.6     # specify percentage to be used for training
+split <- 1     # specify percentage to be used for training
 seed <- round(runif(1, 1, 100000))
 
 #----------------------
 # Load in data
 
-lsat <- brick(paste0(in_dir, year, site, "lsat.tif"))
-names(lsat) <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "srtm")
+lsat <- brick(paste0(in_dir, year_train, site, "lsat.tif"))
+names(lsat) <- c("B1", "B2", "B3", "B4", "B5", "B7", "srtm")
 
-lsat_tc <- brick(paste0(in_dir, year, site, "lsat_tc.tif"))
+lsat_valid <- brick(paste0(in_dir, year_valid, site, "lsat.tif"))
+names(lsat_valid) <- c("B1", "B2", "B3", "B4", "B5", "B7", "srtm")
+
+lsat_tc <- brick(paste0(in_dir, year_train, site, "lsat_tc.tif"))
 names(lsat_tc) <- c("brightness", "greenness", "wetness", "srtm")
 
-polys <- read_sf(paste0(in_dir, year, site, "training.shp")) %>% 
+polys <- read_sf(paste0(in_dir, year_train, site, "training.shp")) %>% 
   mutate(class_fct = as.numeric(as.factor(class))) %>%
   as("Spatial") %>%
   spTransform(crs(lsat)) %>%
   st_as_sf()
+
+polys_valid <- read_sf(paste0(in_dir, year_valid, site, "training.shp")) %>% 
+  mutate(class_fct = as.numeric(as.factor(class))) %>%
+  as("Spatial") %>%
+  spTransform(crs(lsat))
 
 #----------------------------------
 # Split polygons into training and validation datasets
@@ -61,7 +72,7 @@ rast <- raster::extract(lsat, training)
 names(rast) <- training$class
 
 train_df <- plyr::ldply(rast, rbind)
-colnames(train_df) <- c("class", "B1", "B2", "B3", "B4", "B5", "B6", 
+colnames(train_df) <- c("class", "B1", "B2", "B3", "B4", "B5", 
                         "B7", "srtm")
 train_df$class <- as.factor(train_df$class)
 
@@ -73,7 +84,7 @@ svm_lsat <- svm(class ~ ., data = train_df, cost = 100, gamma = 1)
 lsat_pred <- raster::predict(lsat, svm_lsat)
 values(lsat_pred) <- as.numeric(values(lsat_pred))
 
-plot(lsat_pred)
+plot(lsat_pred, main = paste0(year_train, "training"))
 
 #-----------------------
 # Build water mask
@@ -112,76 +123,118 @@ final_lsat <- reclassify(masked_pred, mat_d)
 validateMap(final_lsat, polys_spdf, responseCol = 'class_fct', 
             1000, mode = "classification")
 
-plot(final_lsat, main = "w/ water mask")
+plot(final_lsat, main = paste0(year_train, "training w/ water mask"))
 
 #-----------------------------------
-# Write out LSAT raster
+# Validate with validation year
+# 1. Apply model prediction to 2007 data
+# 2. Use 2007 training data to validate the prediction
 
-# writeRaster(final_lsat, paste0(out_dir, "prcssd_", year, site, "lsat.tif"), 
-#             format = "GTiff", overwrite = TRUE)
+lsat_pred_valid <- raster::predict(lsat_valid, svm_lsat)
+values(lsat_pred_valid) <- as.numeric(values(lsat_pred_valid))
 
-#---------------------------------#
-# Classification for LSAT_TC data #
-#---------------------------------#
-
-tc_rast <- raster::extract(lsat_tc, training)
-names(tc_rast) <- training$class
-
-train_df <- plyr::ldply(tc_rast, rbind)
-colnames(train_df) <- c("class", "brightness", "greenness", "wetness", "srtm")
-train_df$class <- as.factor(train_df$class)
-
-svm_lsat_tc <- svm(class ~ ., data = train_df, cost = 100, gamma = 1)
-
-#---------------------
-# TC: Run prediction and visualize
-
-lsat_tc_pred <- raster::predict(lsat_tc, svm_lsat_tc)
-values(lsat_tc_pred) <- as.numeric(values(lsat_tc_pred))
-
-plot(lsat_tc_pred, main = "lsat_tc_pred")
-
-#-----------------------
-# Build water mask; Uses matrices from lsat section
-# Mask B flips land/water == 0 class to remove water speckles
-
-lsat_tc_mask_a <- reclassify(lsat_tc_pred, mat_a) %>%
-  rm_speckling(speckle_size = 5, dir = 4)
-
-lsat_tc_mask_b <- reclassify(lsat_tc_mask_a, mat_b) %>%
-  rm_speckling(speckle_size = 10, dir = 4)
-
-#----------------------
-# Apply water mask
-
-lsat_tc_water_mask <- reclassify(lsat_tc_mask_b, mat_c)
-
-masked_pred <- mask(lsat_tc_pred, lsat_tc_water_mask)
-
-mat <- matrix(c(0.9, 1.1, 1, 
-                1.9, 2.1, 2,
-                2.9, 3.1, 3,
-                3.9, 4.1, 4,
-                4.9, 5.1, 2,
-                NA, NA, 5), ncol = 3, byrow = TRUE)
-
-final_lsat_tc <- reclassify(masked_pred, mat)
-
-#---------------------------
-# Visualize the two
-
-par(mfrow = c(1, 2))
-plot(lsat_tc_pred, main = "w/o mask")
-plot(final_lsat_tc, main = "w/ mask")
-
-#-----------------------------------
-# Validation
-
-validateMap(final_lsat_tc, polys_spdf, responseCol = 'class_fct', 
+validateMap(lsat_pred_valid, polys_valid, responseCol = 'class_fct', 
             1000, mode = "classification")
 
-#-----------------------
-# Write to file
+plot(lsat_pred_valid, main = paste0(year_valid, "validation"))
 
-# writeRaster(final_lsat_tc, paste0(out_dir, "prcssd", year, site, "svm_tc.tif"),
-#             format = "GTiff", overwrite = TRUE)
+#-----------------------------------
+# Predict for all years
+
+lsat1987 <- brick(paste0(in_dir, "1987_", site, "lsat.tif"))
+names(lsat1987) <- c("B1", "B2", "B3", "B4", "B5", "B7", "srtm")
+
+lsat1997 <- brick(paste0(in_dir, "1997_", site, "lsat.tif"))
+names(lsat1997) <- c("B1", "B2", "B3", "B4", "B5", "B7", "srtm")
+
+lsat2007 <- brick(paste0(in_dir, "2007_", site, "lsat.tif"))
+names(lsat2007) <- c("B1", "B2", "B3", "B4", "B5", "B7", "srtm")
+
+lsat2017 <- brick(paste0(in_dir, "2017_", site, "lsat.tif"))
+names(lsat2017) <- c("B1", "B2", "B3", "B4", "B5", "B7", "srtm")
+
+pred1987 <- raster::predict(lsat1987, svm_lsat)
+values(pred1987) <- as.numeric(values(pred1987))
+pred1997 <- raster::predict(lsat1997, svm_lsat)
+pred2007 <- raster::predict(lsat2007, svm_lsat)
+pred2017 <- raster::predict(lsat2017, svm_lsat)
+
+
+par(mfrow = c(2,2))
+plot(pred1987, main = "1987")
+plot(pred1997, main = "1997")
+plot(pred2007, main = "2007")
+plot(pred2017, main = "2017")
+
+
+# #-----------------------------------
+# # Write out LSAT raster
+# 
+# # writeRaster(final_lsat, paste0(out_dir, "prcssd_", year, site, "lsat.tif"), 
+# #             format = "GTiff", overwrite = TRUE)
+# 
+# #---------------------------------#
+# # Classification for LSAT_TC data #
+# #---------------------------------#
+# 
+# tc_rast <- raster::extract(lsat_tc, training)
+# names(tc_rast) <- training$class
+# 
+# train_df <- plyr::ldply(tc_rast, rbind)
+# colnames(train_df) <- c("class", "brightness", "greenness", "wetness", "srtm")
+# train_df$class <- as.factor(train_df$class)
+# 
+# svm_lsat_tc <- svm(class ~ ., data = train_df, cost = 100, gamma = 1)
+# 
+# #---------------------
+# # TC: Run prediction and visualize
+# 
+# lsat_tc_pred <- raster::predict(lsat_tc, svm_lsat_tc)
+# values(lsat_tc_pred) <- as.numeric(values(lsat_tc_pred))
+# 
+# plot(lsat_tc_pred, main = "lsat_tc_pred")
+# 
+# #-----------------------
+# # Build water mask; Uses matrices from lsat section
+# # Mask B flips land/water == 0 class to remove water speckles
+# 
+# lsat_tc_mask_a <- reclassify(lsat_tc_pred, mat_a) %>%
+#   rm_speckling(speckle_size = 5, dir = 4)
+# 
+# lsat_tc_mask_b <- reclassify(lsat_tc_mask_a, mat_b) %>%
+#   rm_speckling(speckle_size = 10, dir = 4)
+# 
+# #----------------------
+# # Apply water mask
+# 
+# lsat_tc_water_mask <- reclassify(lsat_tc_mask_b, mat_c)
+# 
+# masked_pred <- mask(lsat_tc_pred, lsat_tc_water_mask)
+# 
+# mat <- matrix(c(0.9, 1.1, 1, 
+#                 1.9, 2.1, 2,
+#                 2.9, 3.1, 3,
+#                 3.9, 4.1, 4,
+#                 4.9, 5.1, 2,
+#                 NA, NA, 5), ncol = 3, byrow = TRUE)
+# 
+# final_lsat_tc <- reclassify(masked_pred, mat)
+# 
+# #---------------------------
+# # Visualize the two
+# 
+# par(mfrow = c(1, 2))
+# plot(lsat_tc_pred, main = "w/o mask")
+# plot(final_lsat_tc, main = "w/ mask")
+# 
+# #-----------------------------------
+# # Validation
+# 
+# validateMap(final_lsat_tc, polys_spdf, responseCol = 'class_fct', 
+#             1000, mode = "classification")
+# 
+# #-----------------------
+# # Write to file
+# 
+# # writeRaster(final_lsat_tc, paste0(out_dir, "prcssd", year, site, "svm_tc.tif"),
+# #             format = "GTiff", overwrite = TRUE)

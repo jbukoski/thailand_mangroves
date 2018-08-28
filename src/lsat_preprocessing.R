@@ -18,7 +18,7 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 #----------------------
 # Adjust the below values to output the correct datasets
 
-year <- "2015_"
+year <- "2017_"
 site <- "krabi_"
 
 #----------------------
@@ -34,9 +34,9 @@ srtm <- raster(paste0(raw_dir, site, "srtm.tif")) %>%
 
 # Processing LSAT (appending SRTM band)
 
-lsat[[8]] <- srtm
+lsat[[7]] <- srtm
 
-names(lsat) <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "srtm")
+names(lsat) <- c("B1", "B2", "B3", "B4", "B5", "B7", "srtm")
 
 #----------------------
 # Tasselled cap processing (B1: Brightness, B2: Greenness, B3: Wetness)
