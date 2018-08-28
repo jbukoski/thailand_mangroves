@@ -20,6 +20,7 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 
 year <- "2017_"
 site <- "krabi_"
+sensor <- "TM" # Enter either TM or OLI depending on input data sensor
 
 #----------------------
 # Load in data:
@@ -42,8 +43,13 @@ names(lsat) <- c("B1", "B2", "B3", "B4", "B5", "B7", "srtm")
 # Tasselled cap processing (B1: Brightness, B2: Greenness, B3: Wetness)
 # Note - coefficients are sensor specific, be careful of which LSAT mission
 
-lsat_tc <- tasseledCap(lsat[[c(1:5, 7)]], "Landsat5TM")
-lsat_tc[[4]] <- srtm
+if(sensor == "TM") {
+  lsat_tc <- tasseledCap(lsat[[c(1:5, 7)]], "Landsat5TM")
+  lsat_tc[[4]] <- srtm
+} else if(sensor == "OLI") {
+  lsat_tc <- tasseledCap(lsat[[c(1:5, 7)]], "Landsat8OLI")
+  lsat_tc[[4]] <- srtm
+}
 
 names(lsat_tc) <- c("brightness", "greenness", "wetness", "srtm")
 
