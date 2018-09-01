@@ -20,20 +20,49 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 site <- "krabi_"
 sensor <- "TM" # Enter either TM or OLI depending on input data sensor
 
+#---------------------------
+# Load 2017 LSAT as a template
+
+lsat2017 <- brick(paste0(raw_dir, "raw_", "2017_", site, "lsat.tif")) 
+lsatCRS <- crs(lsat2017)
+
+#---------------------------
+# Load site mask
+
+mask_vec <- readOGR(paste0(in_dir, "kre_boundary.shp")) %>%
+  spTransform(lsatCRS)
+
+empty_rast <- raster(nrow = lsat2017@nrows, ncols = lsat2017@ncols, 
+                     ext = lsat2017@extent, crs = lsat2017@crs)
+
+mask_rast <- rasterize(mask_vec, empty_rast, field = "name")
+
 #----------------------
 # Load in data:
 # 1. LSAT data for site and year of interest. Output from GEE script.
 # 2. SRTM data for the site of interest.
 
-lsat2017 <- brick(paste0(raw_dir, "raw_", "2017_", site, "lsat.tif"))
-lsatCRS <- crs(lsat2017)
+lsat2017 <- mask(lsat2017, mask_rast)
 
 lsat1987 <- brick(paste0(raw_dir, "raw_", "1987_", site, "lsat.tif")) %>%
-  projectRaster(crs = lsatCRS)
-lsat1997 <- brick(paste0(raw_dir, "raw_", "1997_", site, "lsat.tif"))  %>%
-  projectRaster(crs = lsatCRS)
+  projectRaster(crs = lsatCRS) %>%
+  resample(lsat2017, method = "bilinear") %>%
+  mask(mask_rast)
+
+lsat1997 <- brick(paste0(raw_dir, "raw_", "1997_", site, "lsat.tif")) %>%
+  projectRaster(crs = lsatCRS) %>%
+  resample(lsat2017, method = "bilinear") %>%
+  mask(mask_rast)
+
 lsat2007 <- brick(paste0(raw_dir, "raw_", "2007_", site, "lsat.tif")) %>%
-  projectRaster(crs = lsatCRS)
+  projectRaster(crs = lsatCRS) %>%
+  resample(lsat2017, method = "bilinear") %>%
+  mask(mask_rast)
+
+srtm <- raster(paste0(raw_dir, site, "srtm.tif")) %>%
+  projectRaster(crs = lsatCRS) %>%
+  resample(lsat2017, method = "bilinear") %>%
+  mask(mask_rast)
 
 #------------------------
 # Relative correction using histogram matching
@@ -45,7 +74,7 @@ lsat2007match <- histMatch(lsat2007, lsat2017)
 #--------------------------
 # Visualize
 
-band_num <- 4
+band_num <- 1
 
 par(mfrow = c(3,3))
 plot(lsat1987[[band_num]], main = '1987')
@@ -61,10 +90,17 @@ plot(lsat2007match[[band_num]], main = '2007 match')
 plot(lsat2017[[band_num]], main = '2017')
 
 #------------------------
+# Append SRTM
+
+lsat1987match[[7]] <- srtm
+lsat1997match[[7]] <- srtm
+lsat2007match[[7]] <- srtm
+lsat2017[[7]] <- srtm
+
+#------------------------
 # Write out histogram matched rasters
 
 writeRaster(lsat1987match, paste0(in_dir, "matched_", "1987_", site, "lsat.tif"), format = "GTiff", overwrite = TRUE)
 writeRaster(lsat1997match, paste0(in_dir, "matched_", "1997_", site, "lsat.tif"), format = "GTiff", overwrite = TRUE)
 writeRaster(lsat2007match, paste0(in_dir, "matched_", "2007_", site, "lsat.tif"), format = "GTiff", overwrite = TRUE)
 writeRaster(lsat2017, paste0(in_dir, "matched_", "2017_", site, "lsat.tif"), format = "GTiff", overwrite = TRUE)
-

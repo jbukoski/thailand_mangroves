@@ -19,9 +19,9 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 #----------------------
 # Adjust the below values to output the correct datasets
 
-year <- "1997_"
+year <- "2017_"
 site <- "krabi_"
-sensor <- "5TM" # Enter 4TM, 5TM or OLI depending on input data sensor
+sensor <- "OLI" # Enter 4TM, 5TM or OLI depending on input data sensor
 
 #----------------------
 # Load in data:
@@ -30,22 +30,14 @@ sensor <- "5TM" # Enter 4TM, 5TM or OLI depending on input data sensor
 
 lsat <- brick(paste0(in_dir, "matched_", year, site, "lsat.tif"))
 
-srtm <- raster(paste0(raw_dir, site, "srtm.tif")) %>%
-  projectRaster(crs = crs(lsat)) %>%
-  resample(lsat, method = "bilinear")
-
-# Processing LSAT (appending SRTM band)
-
-lsat[[8]] <- srtm
-
-names(lsat) <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "srtm")
+names(lsat) <- c("blue", "green", "red", "nir", "swir1", "swir2", "srtm")
 
 #----------------------
 # Tasselled cap processing (B1: Brightness, B2: Greenness, B3: Wetness)
 # Note - coefficients are sensor specific, be careful of which LSAT mission
 
 if(sensor == "4TM") {
-  lsat_tc <- tasseledCap(lsat[[c(1:5, 7)]], "Landsat4TM")
+  lsat_tc <- tasseledCap(lsat[[c(1:6)]], "Landsat4TM")
   
   ndvi <- ( lsat[[4]] - lsat[[3]] ) / ( lsat[[4]] + lsat[[3]] )
   rc_mat <- matrix(c(1, 100, 1, -100, -1, -1), nrow = 2, ncol = 3, byrow = T)
@@ -54,12 +46,12 @@ if(sensor == "4TM") {
   ndwi <- ( lsat[[2]] - lsat[[4]] ) / ( lsat[[2]] + lsat[[4]] )  # McFeeters NDWI 1996
   ndwi <- reclassify(ndwi, rc_mat)
   
-  lsat_tc[[4]] <- srtm
+  lsat_tc[[4]] <- lsat[[7]]
   lsat_tc[[5]] <- ndvi
   lsat_tc[[6]] <- ndwi
 
 } else if(sensor == "5TM") {
-  lsat_tc <- tasseledCap(lsat[[c(1:5, 7)]], "Landsat5TM")
+  lsat_tc <- tasseledCap(lsat[[c(1:6)]], "Landsat5TM")
   
   ndvi <- ( lsat[[4]] - lsat[[3]] ) / ( lsat[[4]] + lsat[[3]] )
   rc_mat <- matrix(c(1, 100, 1, -100, -1, -1), nrow = 2, ncol = 3, byrow = T)
@@ -68,12 +60,12 @@ if(sensor == "4TM") {
   ndwi <- ( lsat[[2]] - lsat[[4]] ) / ( lsat[[2]] + lsat[[4]] )  # McFeeters NDWI 1996
   ndwi <- reclassify(ndwi, rc_mat)
   
-  lsat_tc[[4]] <- srtm
+  lsat_tc[[4]] <- lsat[[7]]
   lsat_tc[[5]] <- ndvi
   lsat_tc[[6]] <- ndwi
   
 } else if(sensor == "OLI") {
-  lsat_tc <- tasseledCap(lsat[[c(2:7)]], "Landsat8OLI")
+  lsat_tc <- tasseledCap(lsat[[c(1:6)]], "Landsat8OLI")
   
   ndvi <- ( lsat[[5]] - lsat[[4]] ) / ( lsat[[5]] + lsat[[4]] )
   rc_mat <- matrix(c(1, 100, 1, -100, -1, -1), nrow = 2, ncol = 3, byrow = T)
@@ -82,7 +74,7 @@ if(sensor == "4TM") {
   ndwi <- ( lsat[[3]] - lsat[[5]] ) / ( lsat[[3]] + lsat[[5]] )  # McFeeters NDWI 1996
   ndwi <- reclassify(ndwi, rc_mat)
   
-  lsat_tc[[4]] <- srtm
+  lsat_tc[[4]] <- lsat[[7]]
   lsat_tc[[5]] <- ndvi
   lsat_tc[[6]] <- ndwi
   

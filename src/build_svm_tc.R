@@ -85,7 +85,7 @@ train_df <- plyr::ldply(tc_rast, rbind)
 colnames(train_df) <- c("class", band_names)
 train_df$class <- as.factor(train_df$class)
 
-svm_lsat_tc <- svm(class ~ brightness + srtm + ndvi + var3, 
+svm_lsat_tc <- svm(class ~ brightness + srtm + ndvi, 
                    data = train_df, cost = 100, gamma = 1)
 
 #---------------------
@@ -139,11 +139,6 @@ plot(final_lsat_tc, main = "w/ mask")
 
 pred_tc_valid <- raster::predict(lsat_tc_valid, svm_lsat_tc)
 values(lsat_tc_pred) <- as.numeric(values(pred_tc_valid))
-
-# Run post classification smoother
-
-threes <- matrix(1, nrow = 3, ncol = 3)
-pred_tc_valid <- focal(pred_tc_valid, fives, fun = modal)
 
 plot(pred_tc_valid, main = "masked prediction on validation year")
 
