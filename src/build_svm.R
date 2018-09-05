@@ -86,8 +86,9 @@ train_df <- plyr::ldply(rast, rbind)
 colnames(train_df) <- c("class", band_names)
 train_df$class <- as.factor(train_df$class)
 
-svm_lsat <- svm(class ~ ndvi + srtm + brightness + greenness + avg3, 
-                   data = train_df, cost = 100, gamma = 1)
+svm_lsat <- svm(class ~ blue + green + red + nir + swir1 + swir2 + 
+                  ndvi + ndwi + srtm + brightness + greenness + avg3, 
+                data = train_df, cost = 100, gamma = 1)
 
 #----------------------------------
 # TC: Run prediction on training year and validation year & visualize
@@ -121,6 +122,7 @@ plot(validation_pts, add = T)
 # Run 3x3 focal smoothing using modal function
 
 threes <- matrix(1, nrow = 3, ncol = 3)
+fives <- matrix(1, nrow = 5, ncol = 5)
 valid_smooth <- focal(valid_pred, w = threes, fun = modal)
 
 plot(valid_smooth)
@@ -146,7 +148,7 @@ plot(valid_pred)
 test <- valid_test %>%
   filter(!is.na(pred_fct)) %>%
   filter(class_fct != pred_fct) %>%
-  filter(pred_fct == 4) %>%
+  #filter(pred_fct == 4) %>%
   as("Spatial") %>%
   plot(add = TRUE, col = .$pred_fct)
 
@@ -155,23 +157,42 @@ test <- valid_test %>%
 
 lsat1987 <- brick(paste0(in_dir, "1987_", site, "lsat.tif")) %>%
   setNames(band_names)
-
 lsat1997 <- brick(paste0(in_dir, "1997_", site, "lsat.tif")) %>%
   setNames(band_names)
-
 lsat2007 <- brick(paste0(in_dir, "2007_", site, "lsat.tif")) %>%
   setNames(band_names)
-
 lsat2017 <- brick(paste0(in_dir, "2017_", site, "lsat.tif")) %>%
   setNames(band_names)
 
-pred_1987 <- raster::predict(lsat1987, svm_lsat)
-pred_1997 <- raster::predict(lsat1997, svm_lsat)
-pred_2007 <- raster::predict(lsat2007, svm_lsat)
-pred_2017 <- raster::predict(lsat2017, svm_lsat)
+pred_1987 <- raster::predict(lsat1987, svm_lsat) %>%
+  focal(w = threes, fun = modal)
+pred_1997 <- raster::predict(lsat1997, svm_lsat) %>%
+  focal(w = threes, fun = modal)
+pred_2007 <- raster::predict(lsat2007, svm_lsat) %>%
+  focal(w = threes, fun = modal)
+pred_2017 <- raster::predict(lsat2017, svm_lsat) %>%
+  focal(w = threes, fun = modal)
 
 par(mfrow = c(2,2))
 plot(pred_1987, main = '1987')
 plot(pred_1997, main = '1997')
 plot(pred_2007, main = '2007')
 plot(pred_2017, main = '2017')
+
+#--------------------------------------
+# Table summary values
+
+data <- rbind(
+  c( tapply(pred_1987, pred_1987[], FUN = sum) * 0.09, 1987),
+  c(tapply(pred_1997, pred_1997[], FUN = sum) * 0.09, 1997),
+  c(tapply(pred_2007, pred_2007[], FUN = sum) * 0.09, 2007),
+  c(tapply(pred_2017, pred_2017[], FUN = sum) * 0.09, 2017)
+) %>% as.data.frame()
+
+colnames(data) <- c("agri", "aqua", "mang", "urban", "water", "year")
+
+test_data <- melt(data, id="year")
+
+ggplot(data=test_data,
+       aes(x=year, y=value, colour=variable)) +
+  geom_line()
