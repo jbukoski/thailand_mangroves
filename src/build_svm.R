@@ -57,7 +57,7 @@ polys <- read_sf(paste0(in_dir, year_train, site, "training.shp")) %>%
   spTransform(crs(lsat)) %>%
   st_as_sf()
 
-validation_pts <- read_sf(paste0(in_dir, site, "reg_vld_pts.shp")) %>%
+validation_pts <- read_sf(paste0(in_dir, "pts_test.shp")) %>%
   mutate(class = ifelse(class == "agricultur", "agriculture", 
                         ifelse(class == "aquacultur", "aquaculture", class)),
          class_fct = as.numeric(factor(class))) %>%
@@ -89,127 +89,81 @@ train_df$class <- as.factor(train_df$class)
 svm_lsat <- svm(class ~ ndvi + srtm + brightness + greenness + avg3, 
                    data = train_df, cost = 100, gamma = 1)
 
-#---------------------
-# TC: Run prediction on training year and visualize
+#----------------------------------
+# TC: Run prediction on training year and validation year & visualize
 
 lsat_pred <- raster::predict(lsat, svm_lsat)
-values(lsat_pred) <- as.numeric(values(lsat_pred))
+valid_pred <- raster::predict(lsat_valid, svm_lsat)
 
-#-----------------------
-# Build water mask
-# Mask B flips land/water == 0 class to remove water speckles
-# 
-# mat_a <- matrix(c(0, 4, 0, 4.9, 5.1, 1), ncol = 3, byrow = TRUE)
-# 
-# lsat_mask_a <- reclassify(lsat_pred, mat_a) %>%
-#   rm_speckling(speckle_size = 5, dir = 4)
-# 
-# mat_b <- matrix(c(-0.1, 0.1, 1, 0.9, 1.1, 0), ncol = 3, byrow = TRUE)
-# 
-# lsat_mask_b <- reclassify(lsat_mask_a, mat_b) %>%
-#   rm_speckling(speckle_size = 10, dir = 4)
-# 
-# #----------------------
-# # Apply water mask
-# 
-# mat_c <- matrix(c(-0.1, 0.1, NA, 0.9, 1.1, 1), ncol = 3, byrow = TRUE)
-# lsat_water_mask <- reclassify(lsat_mask_b, mat_c)
-# 
-# mat_d <- matrix(c(0.9, 1.1, 1, 
-#                   1.9, 2.1, 2,
-#                   2.9, 3.1, 3,
-#                   3.9, 4.1, 4,
-#                   4.9, 5.1, 2,
-#                   NA, NA, 5), ncol = 3, byrow = TRUE)
-# 
-# 
-# masked_pred <- mask(lsat_pred, lsat_water_mask)
-# final_lsat <- reclassify(masked_pred, mat_d)
-# 
-# #---------------------------
-# # Visualize the two
-# 
-# par(mfrow = c(1, 2))
-# plot(lsat_pred, main = "w/o mask")
-# plot(final_lsat, main = "w/ mask")
-
-#-----------------------------------
-# Run prediction on validation year
-
-pred_valid <- raster::predict(lsat_valid, svm_lsat)
-values(pred_valid) <- as.numeric(values(pred_valid))
+#----------------------------------
+# Visualize the classifications
 
 par(mfrow = c(1,2))
 
 plot(lsat_pred, main = "2017 predicted")
-plot(pred_valid, main = "2007 predicted")
+plot(valid_pred, main = "2007 predicted")
 
 #-----------------------------------
-# Accuracy assessment
+# Accuracy assessment of prediction on the validation year
 
-accuracy <- validateMap(lsat_pred, validation_pts, 
-                          responseCol = 'class_fct', 
+acc <- validateMap(valid_pred, validation_pts, responseCol = 'class_fct',
                           1000, mode = "classification")
 
-acc_mat <- matrix(accuracy$performance$table, nrow = 5, ncol = 5)
+acc_mat <- matrix(acc$performance$table, nrow = 5, ncol = 5)
 
-users <- diag(acc_mat) / rowSums(acc_mat)
-producers <- diag(acc_mat) / colSums(acc_mat)
+usrs_acc <- diag(acc_mat) / rowSums(acc_mat)
+prds_acc <- diag(acc_mat) / colSums(acc_mat)
 
-plot(pred_valid, main = paste0(year_valid, "validation"))
+plot(valid_pred, main = paste0(year_valid, "validation"))
 plot(validation_pts, add = T)
 
-#-----------------------------#
-# Unsupervised classification #
-#-----------------------------#
-# Using kmeans clustering
+#------------------------------------
+# Run 3x3 focal smoothing using modal function
 
-v <- getValues(lsat_valid)
-i <- which(!is.na(v))
-kmeans_rast <- kmeans(v[i], 12, iter.max = 100, nstart = 10)
+threes <- matrix(1, nrow = 3, ncol = 3)
+valid_smooth <- focal(valid_pred, w = threes, fun = modal)
 
-kmeans_raster <- raster(lsat)
-kmeans_raster[i] <- kmeans_rast$cluster
-plot(kmeans_raster)
+plot(valid_smooth)
 
-kmeans_rc_mat <- matrix(c(0.9, 1.1, 4, 
-                          1.9, 2.1, 2,
-                          2.9, 3.1, 3,
-                          3.9, 4.1, 1,
-                          4.9, 5.1, 5), ncol = 3, byrow = TRUE)
+acc_smth <- validateMap(valid_smooth, validation_pts, responseCol = 'class_fct',
+                        1000, mode = "classification")
 
-kmeans_raster <- reclassify(kmeans_raster, kmeans_rc_mat)
+acc_smth_mat <- matrix(acc_smth$performance$table, nrow = 5, ncol = 5)
+usrs_smth_acc <- diag(acc_smth_mat) / rowSums(acc_smth_mat)
+prds_smth_acc <- diag(acc_smth_mat) / colSums(acc_smth_mat)
 
-validateMap(kmeans_raster, validation_pts, responseCol = 'class_fct', 
-            1000, mode = "classification")
+#------------------------------------
+# Assess validation points accuracy
 
-plot(lsat_pred)
+valid_test <- raster::extract(valid_pred, validation_pts)
 
-# Unsupervised classification using randomForest classification w/ kmeans
+valid_test <- validation_pts %>%
+  st_as_sf() %>%
+  mutate(pred_fct = valid_test)
 
-vx <- v[sample(nrow(v), 500), ]
-rf <- randomForest(vx)
-rf_prox <- randomForest(vx, ntree = 1000, proximity = TRUE)$proximity
+plot(valid_pred)
 
-E_rf <- kmeans(rf_prox, 5, iter.max = 100, nstart = 10)
-rf <- randomForest(vx, as.factor(E_rf$cluster), ntree = 500)
-rf_raster <- predict(lsat_valid, rf)
-plot(rf_raster)
+test <- valid_test %>%
+  filter(!is.na(pred_fct)) %>%
+  filter(class_fct != pred_fct) %>%
+  filter(pred_fct == 4) %>%
+  as("Spatial") %>%
+  plot(add = TRUE, col = .$pred_fct)
 
 #----------------------------------
 # Load all layers and run predictions on them
 
-lsat1987 <- brick(paste0(in_dir, "1987_", site, "lsat.tif"))
-names(lsat1987) <- band_names
+lsat1987 <- brick(paste0(in_dir, "1987_", site, "lsat.tif")) %>%
+  setNames(band_names)
 
-lsat1997 <- brick(paste0(in_dir, "1997_", site, "lsat.tif"))
-names(lsat1997) <- band_names
+lsat1997 <- brick(paste0(in_dir, "1997_", site, "lsat.tif")) %>%
+  setNames(band_names)
 
-lsat2007 <- brick(paste0(in_dir, "2007_", site, "lsat.tif"))
-names(lsat2007) <- band_names
+lsat2007 <- brick(paste0(in_dir, "2007_", site, "lsat.tif")) %>%
+  setNames(band_names)
 
-lsat2017 <- brick(paste0(in_dir, "2017_", site, "lsat.tif"))
-names(lsat2017) <- band_names
+lsat2017 <- brick(paste0(in_dir, "2017_", site, "lsat.tif")) %>%
+  setNames(band_names)
 
 pred_1987 <- raster::predict(lsat1987, svm_lsat)
 pred_1997 <- raster::predict(lsat1997, svm_lsat)

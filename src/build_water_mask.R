@@ -107,3 +107,45 @@ plot(rast_b)
 # Write map to file
 
 writeRaster(water_mask, paste0(out_dir, site, "water_mask.tif"), format = "GTiff", overwrite = TRUE)
+
+#-----------------------------------
+# Code removed from "build_svm.R"
+
+
+#-----------------------
+# Build water mask
+# Mask B flips land/water == 0 class to remove water speckles
+# 
+# mat_a <- matrix(c(0, 4, 0, 4.9, 5.1, 1), ncol = 3, byrow = TRUE)
+# 
+# lsat_mask_a <- reclassify(lsat_pred, mat_a) %>%
+#   rm_speckling(speckle_size = 5, dir = 4)
+# 
+# mat_b <- matrix(c(-0.1, 0.1, 1, 0.9, 1.1, 0), ncol = 3, byrow = TRUE)
+# 
+# lsat_mask_b <- reclassify(lsat_mask_a, mat_b) %>%
+#   rm_speckling(speckle_size = 10, dir = 4)
+# 
+# #----------------------
+# # Apply water mask
+# 
+# mat_c <- matrix(c(-0.1, 0.1, NA, 0.9, 1.1, 1), ncol = 3, byrow = TRUE)
+# lsat_water_mask <- reclassify(lsat_mask_b, mat_c)
+# 
+# mat_d <- matrix(c(0.9, 1.1, 1, 
+#                   1.9, 2.1, 2,
+#                   2.9, 3.1, 3,
+#                   3.9, 4.1, 4,
+#                   4.9, 5.1, 2,
+#                   NA, NA, 5), ncol = 3, byrow = TRUE)
+# 
+# 
+# masked_pred <- mask(lsat_pred, lsat_water_mask)
+# final_lsat <- reclassify(masked_pred, mat_d)
+# 
+# #---------------------------
+# # Visualize the two
+# 
+# par(mfrow = c(1, 2))
+# plot(lsat_pred, main = "w/o mask")
+# plot(final_lsat, main = "w/ mask")
