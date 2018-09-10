@@ -1,45 +1,64 @@
-# This script analyzes the sampling data of mangrove carbon stocks in Southeast Asia
-
-rm(list=ls())
-
-setwd("~/Dropbox/mangrove-work/data")
+#######################################################
+## Site analysis for Krabi and Pak Panang field data ##
+#######################################################
+#
+# Imports plotwise field data for Krabi River Estuary
+# and the Pak Panang Mangrove and generates site wide
+# estimates of forest structure, species composition
+# and ecosystem carbon stocks
+#
+# Inputs:
+#  1. Excel file containing field data (publish on Harvard DataVerse later?)
+#
+# Outputs
+#  2. CSV files of processed data
+#
+#
+#--------------------------------------
+# Load libraries and begin script
 
 library("ggplot2")
 library("lmfor")
 library("tidyverse")
 library("readxl")
 
-#------------------------------------------------------------------------------
-## Load in data and set necessary site level values
+#----------------------
+# Load in helper functions & allometry functions
 
-meta <- read_excel("thailand_data.xlsx", sheet="Metadata", col_names = T)
-trees <- read_excel("thailand_data.xlsx", sheet="Trees", col_names = T)
-saps <- read_excel("thailand_data.xlsx", sheet="Saplings", col_names = T)
-seedlings <- read_excel("thailand_data.xlsx", sheet="Seedlings", col_names = T)
-cwd <- read_excel("thailand_data.xlsx", sheet="CWD", col_names = T)
-soil <- read_excel("thailand_data.xlsx", sheet="Soil", col_names = T)
+source("/home/jbukoski/research/scripts/thailand_stocks/src/helper_funcs.R")
+source("/home/jbukoski/research/scripts/thailand_stocks/src/allometry.R")
+
+#----------------------
+# Specify in/out directories
+
+in_dir <- "/home/jbukoski/research/data/thailand_stocks/input/"
+out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
+
+#---------------------------------------
+## Load in data
+
+meta <- read_excel(paste0(in_dir, "thailand_data.xlsx"), sheet="Metadata", col_names = T)
+trees <- read_excel(paste0(in_dir, "thailand_data.xlsx"), sheet="Trees", col_names = T)
+saps <- read_excel(paste0(in_dir, "thailand_data.xlsx"), sheet="Saplings", col_names = T)
+seedlings <- read_excel(paste0(in_dir, "thailand_data.xlsx"), sheet="Seedlings", col_names = T)
+cwd <- read_excel(paste0(in_dir, "thailand_data.xlsx"), sheet="CWD", col_names = T)
+soil <- read_excel(paste0(in_dir, "thailand_data.xlsx"), sheet="Soil", col_names = T)
+
+#-----------------------------------------
+# Specify necessary parameters
 
 plot_size <- 5*(7^2)*pi
 subplot_size <- 5*(2^2)*pi
 sampled_area <- plot_size*7 
 sub_sampled_area <- subplot_size*7
-krabi_ha <- 102120000
-nakorn_ha <- 56800000
 
 site_areas <- tibble(site = c("Krabi", "Nakorn"),
-                     area = c(102120000, 56800000))
-
-#------------------------------------------------
-# Source helper functions and allometry table
-
-source("/home/jbukoski/research/scripts/thailand_stocks/src/helper_funcs.R")
-source("/home/jbukoski/research/scripts/thailand_stocks/src/allometry.R")
-source("/home/jbukoski/Dropbox/mangrove-work/model-files/Function-SummarySE.R")
+                     area = c(100000, 100000))
 
 #------------------------------------------------------------------------------
-# Clean up the dataset.
+# Clean up the dataset
 
-colnames(trees) <- tolower(gsub("[.]", "_", colnames(trees)))
+colnames(trees) <- tolower(gsub("[. ]", "_", colnames(trees)))
 
 trees <- trees %>% 
   id_taxon(trees$species) %>%
@@ -58,7 +77,7 @@ trees <- trees %>%
   mutate(agb = invoke_map_dbl(ag_form, params)) %>%
   mutate(bgb = invoke_map_dbl(bg_form, params))
 
-# Adjust ag.biomass variable based on Status variable
+# Adjust AGB variable based on 'status' variable
 # Calculate cone if base_cm measurement exists, otherwise assume a cylinder
 
 trees <- trees %>%
@@ -101,22 +120,21 @@ saps <- saps %>%
 
 saps <- saps %>%
   mutate(adj_agb = ifelse(is.na(status), agb,
-                          ifelse(status == 1, 0.95*agb, 0.8*agb)))
+                          ifelse(status == 1, 0.95 * agb, 0.8 * agb)))
 
 # Compute total biomass as function of bgb & adj_agb
 
 saps <- saps %>%
   mutate(biomass = adj_agb + bgb) %>%
-  dplyr::select(-ag_form, - bg_form, - ag_ref, 
-                - bg_ref, -params)
+  dplyr::select(-ag_form, -bg_form, -ag_ref, -bg_ref, -params)
 
 #-------------------------------------------------------------------------------
-#Calculate biomass for the coarse-woody debris pool based on default mean diameters
-#and densities given in the Kauffman and Donato protocols
+# Calculate biomass for the coarse-woody debris pool based on default mean 
+# diameters and densities given in the Kauffman & Donato 2012
 
 colnames(cwd) <- tolower(gsub("[. ]", "_", colnames(cwd)))
 
-#define the mean specific gravities (g/cm^3) of the wood classes; taken from K&D, 2012
+# Define the mean specific gravities (g/cm^3) of the wood classes; taken from K&D, 2012
 
 cwd_params <- tibble(size = c("fine", "small", "medium", "large"),
                      density = c(0.48, 0.64, 0.71, 0.69),
@@ -126,7 +144,8 @@ cwd_params <- tibble(size = c("fine", "small", "medium", "large"),
 
 new_cwd <- cwd %>%
   dplyr::select(-remarks) %>%
-  gather(size, n, -site, -date, -recorder, -plot, -subplot, -transect, -data_checked_by, -data_entered_by) %>%
+  gather(size, n, -site, -date, -recorder, -plot, 
+         -subplot, -transect, -data_checked_by, -data_entered_by) %>%
   separate(size, c("size", "status")) %>%
   left_join(cwd_params, by = "size") %>%
   mutate(trnsct_lngth = ifelse(size == "fine", 2,
@@ -141,15 +160,15 @@ new_cwd <- cwd %>%
 # Create a summary table
 
 summary_cwd <- new_cwd %>%
-  dplyr::group_by(site, plot, size, status) %>%
-  dplyr::summarise(total = mean(n), mass = mean(mass)) %>%
-  dplyr::group_by(plot) %>%
-  dplyr::mutate(plot_mass = sum(mass))
+  group_by(site, plot, size, status) %>%
+  summarise(total = mean(n), mass = mean(mass)) %>%
+  group_by(plot) %>%
+  mutate(plot_mass = sum(mass))
 
 site_cwd <- summary_cwd %>%
   group_by(site) %>%
-  dplyr::summarize(cwd = mean(plot_mass),
-                   cwd_se = mean(sd(unique(plot_mass) / sqrt(n_distinct(plot_mass)))))
+  summarize(cwd = mean(plot_mass),
+            cwd_se = mean(sd(unique(plot_mass) / sqrt(n_distinct(plot_mass)))))
 
 #-------------------------------------------------------------------------------
 #Obtain estimate of biomass per hectare based on all plots
@@ -163,8 +182,8 @@ trees_ci <- trees %>%
                    v_cap = mean(N)^2 * (1/sampled_area - 1/mean(N)) * var(biomass),
                    se_tau_cap = sqrt(v_cap),
                    mean_biomass = tau_cap / (mean(N)/10000) / 1000,
-                   lower = (tau_cap - (se_tau_cap * t_val))/(mean(N)/10000)/1000,
-                   upper = (tau_cap + (se_tau_cap * t_val))/(mean(N)/10000)/1000,
+                   lower = (tau_cap - (se_tau_cap * t_val)) / (mean(N)/10000)/1000,
+                   upper = (tau_cap + (se_tau_cap * t_val)) / (mean(N)/10000)/1000,
                    moe = 100*((se_tau_cap * t_val)/(mean(N) / 10000))/mean_biomass/1000,
                    ag_tau = mean(N)/sampled_area * sum(agb),
                    ag_var = mean(N)^2 * (1/sampled_area - 1/mean(N)) * var(agb),
