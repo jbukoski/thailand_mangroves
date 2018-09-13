@@ -40,31 +40,31 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 
 meta <- read_excel(paste0(in_dir, "thailand_data.xlsx"), sheet="Metadata", col_names = T)
 
-trees <- read_excel(paste0(in_dir, "thailand_data.xlsx"), 
+raw_trees <- read_excel(paste0(in_dir, "thailand_data.xlsx"), 
                     sheet="Trees", col_names = T) %>%
   set_colnames(tolower(colnames(.))) %>%
   set_colnames(gsub("[. ]", "_", colnames(.))) %>%
   select(-date, -recorder, -checked_by, -entered_by)
 
-saps <- read_excel(paste0(in_dir, "thailand_data.xlsx"), 
+raw_saps <- read_excel(paste0(in_dir, "thailand_data.xlsx"), 
                    sheet="Saplings", col_names = T) %>%
   set_colnames(tolower(colnames(.))) %>%
   set_colnames(gsub("[. ]", "_", colnames(.))) %>%
   select(-date, -recorder, -checked_by, -entered_by)
 
-seedlings <- read_excel(paste0(in_dir, "thailand_data.xlsx"), 
+raw_seedlings <- read_excel(paste0(in_dir, "thailand_data.xlsx"), 
                         sheet="Seedlings", col_names = T) %>%
   set_colnames(tolower(colnames(.))) %>%
   set_colnames(gsub("[. ]", "_", colnames(.))) %>%
   select(-date, -recorder, -checked_by, -entered_by)
 
-cwd <- read_excel(paste0(in_dir, "thailand_data.xlsx"), 
+raw_cwd <- read_excel(paste0(in_dir, "thailand_data.xlsx"), 
                   sheet="CWD", col_names = T) %>%
   set_colnames(tolower(colnames(.))) %>%
   set_colnames(gsub("[ .]", "_", colnames(.))) %>%
   select(-date, -recorder, -checked_by, -entered_by)
 
-soil_raw <- read_excel(paste0(in_dir, "thailand_data.xlsx"), 
+raw_soil <- read_excel(paste0(in_dir, "thailand_data.xlsx"), 
                    sheet="Soil", col_names = T) %>%
   set_colnames(tolower(colnames(.))) %>%
   set_colnames(gsub("[. ]", "_", colnames(.))) %>%
@@ -87,12 +87,15 @@ site_areas <- tibble(site = c("Krabi", "Nakorn"),
                      area = c(100000, 100000))
 
 #------------------------------------------------------------------------------
-# Analysis for: TREES
+
+#------------------------#
+# Processing of raw data #
+#------------------------#
 
 # Create species code and calculate basal area
 
-trees <- trees %>% 
-  id_taxon(trees$species) %>%
+trees <- raw_trees %>% 
+  id_taxon(raw_trees$species) %>%
   mutate(sps_code = paste0(substr(genus, 1, 2), substr(species, 1, 2)),
          basal_area = pi * (dbh_cm/100/2)^2) %>%
   dplyr::select(-genus, -species)
@@ -133,11 +136,11 @@ trees <- trees %>%
                 -params, -top_diam, -stump.vol, - adj_agb)
 
 #-------------------------------------------------------------------------------
-# Analysis for: SAPLINGS
+# Processing for saplings
 # Follows same steps as for trees
 
-saps <- saps %>% 
-  id_taxon(saps$species) %>%
+saps <- raw_saps %>% 
+  id_taxon(raw_saps$species) %>%
   mutate(sps_code = paste0(substr(genus, 1, 2), substr(species, 1, 2))) %>%
   dplyr::select(-genus, -species)
 
@@ -161,14 +164,14 @@ saps <- saps %>%
 
 biomass <- bind_rows(mutate(trees, stage = "tree"), mutate(saps, stage = "sapling"))
 
-#-------------------------------------------------------------------------------
-# Analysis for: CWD
+#-----------------------------------------------------------------------------
+# Processing for coarse woody debris (CWD)
 
 # Calculate biomass for the coarse-woody debris pool based on default mean 
 # diameters and densities given in Kauffman & Donato 2012
 
-# Define the mean specific gravities (g/cm^3) of the wood classes; taken from K&D, 2012
-# Avg diameter is quadratic mean diameter in cm, density is g/cm^3 (i.e., Mg/m^3)
+# Mean specific gravities (g/cm^3) of CWD classes taken from K&D, 2012
+# Avg_diam is quadratic mean diameter in cm, density is g/cm^3 (i.e., Mg/m^3)
 
 cwd_params <- tibble(size = c("fine", "small", "medium", "large"),
                      density = c(0.48, 0.64, 0.71, 0.69),
@@ -177,7 +180,7 @@ cwd_params <- tibble(size = c("fine", "small", "medium", "large"),
 # Calculate mass and volume per plot for each size class, beginning with fine CWD
 # Volume in m^3 per ha and mass in Mg per ha
 
-cwd <- cwd %>%
+cwd <- raw_cwd %>%
   dplyr::select(-remarks) %>%
   gather(size, n, -site, -plot, -subplot, -transect) %>%
   separate(size, c("size", "status")) %>%
@@ -197,11 +200,73 @@ cwd <- cwd %>%
   group_by(site, plot) %>%
   mutate(plot_mass = mean(subplot_mass))
 
+#------------------------------------------------------
+# Processing for soil
+
+soil <- raw_soil %>%
+  mutate(c_dens = bulk_density * (percent_c/100),
+         int_volume = ifelse(interval == 5, 
+                             ((avg_depth/100) - (100/100)) * 10000, 
+                             ((int_b/100) - (int_a/100)) * 10000),
+         soc_per_ha = int_volume * c_dens)
+
 #-------------------------------------------------------------------------------
 
 #------------------------------------------#
 # Forest structure and species composition #
 #------------------------------------------#
+
+trees_strcture <- trees %>%
+  select(site, plot, subplot, dbh_cm, status, sps_code, basal_area) %>%
+  group_by(site, plot, subplot) %>%
+  mutate(subplot_dbh = mean(dbh_cm),
+         subplot_ba = sum(basal_area),
+         subplot_n = n()) %>%
+  select(site, plot, subplot, subplot_dbh, subplot_ba, subplot_n) %>%
+  distinct %>%
+  group_by(site, plot) %>%
+  mutate(plot_dbh = mean(subplot_dbh),
+         plot_dbh_se = sqrt(var(subplot_dbh)) / sqrt(n()),
+         plot_ba = 10000 * mean(subplot_ba) / plot_size,
+         plot_ba_se = 10000 * sqrt(var(subplot_ba)) / sqrt(n()) / plot_size,
+         plot_n = 10000 * mean(subplot_n) / plot_size,
+         plot_n_se = 10000 * sqrt(var(subplot_n)) / sqrt(n()) / plot_size) %>%
+  select(site, plot, plot_dbh, plot_dbh_se, plot_ba, plot_ba_se,
+         plot_n, plot_n_se) %>%
+  distinct
+
+# Compute plot-wise species presence
+
+trees %>%
+  select(site, sps_code) %>%
+  group_by(site) %>%
+  distinct() %>%
+  arrange(site, sps_code) %>%
+  mutate(species = toString(sps_code)) %>%
+  select(-sps_code) %>%
+  distinct()
+
+# Compute counts for saplings
+
+trees_strcture <- trees %>%
+  select(site, plot, subplot, dbh_cm, status, sps_code, basal_area) %>%
+  group_by(site, plot, subplot) %>%
+  mutate(subplot_dbh = mean(dbh_cm),
+         subplot_ba = sum(basal_area),
+         subplot_n = n()) %>%
+  select(site, plot, subplot, subplot_dbh, subplot_ba, subplot_n) %>%
+  distinct %>%
+  group_by(site, plot) %>%
+  mutate(plot_dbh = mean(subplot_dbh),
+         plot_dbh_se = sqrt(var(subplot_dbh)) / sqrt(n()),
+         plot_ba = 10000 * mean(subplot_ba) / plot_size,
+         plot_ba_se = 10000 * sqrt(var(subplot_ba)) / sqrt(n()) / plot_size,
+         plot_n = 10000 * mean(subplot_n) / plot_size,
+         plot_n_se = 10000 * sqrt(var(subplot_n)) / sqrt(n()) / plot_size) %>%
+  select(site, plot, plot_dbh, plot_dbh_se, plot_ba, plot_ba_se,
+         plot_n, plot_n_se) %>%
+  distinct
+
 
 # Classify each plot by species
 # Species metrics at the plot level
@@ -396,14 +461,6 @@ cwd_summary <- cwd %>%
 #---------------#
 # Soil analysis #
 #---------------#
-
-
-soil <- soil_raw %>%
-  mutate(c_dens = bulk_density * (percent_c/100),
-         int_volume = ifelse(interval == 5, 
-                             ((avg_depth/100) - (100/100)) * 10000, 
-                             ((int_b/100) - (int_a/100)) * 10000),
-         soc_per_ha = int_volume * c_dens)
 
 soil_summary <- soil %>%
   group_by(site, plot, subplot) %>%
