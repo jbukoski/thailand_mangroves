@@ -85,7 +85,7 @@ raw_aqua <- read_excel(paste0(in_dir, "aquaculture_data.xlsx"),
 
 plot_size <- (7^2)*pi
 subplot_size <- (2^2)*pi
-transect_area <- 5 * plot_size
+transect_size <- 5 * plot_size
 
 t_val <- qt(0.975, 7-1)
 
@@ -230,13 +230,22 @@ trees_structure <- trees %>%
   distinct %>%
   group_by(site, plot) %>%
   mutate(plot_dbh = mean(subplot_dbh),
-         plot_dbh_se = sqrt(var(subplot_dbh)) / sqrt(n()),
+         plot_dbh_se = sqrt(var(subplot_dbh) / n()),
          plot_ba = 10000 * mean(subplot_ba) / plot_size,
-         plot_ba_se = 10000 * sqrt(var(subplot_ba)) / sqrt(n()) / plot_size,
+         plot_ba_se = 10000 * sqrt(var(subplot_ba) / n()) / plot_size,
          plot_n = 10000 * mean(subplot_n) / plot_size,
-         plot_n_se = 10000 * sqrt(var(subplot_n)) / sqrt(n()) / plot_size) %>%
+         plot_n_se = 10000 * sqrt(var(subplot_n) / n()) / plot_size) %>%
   select(site, plot, plot_dbh, plot_dbh_se, plot_ba, plot_ba_se,
          plot_n, plot_n_se) %>%
+  distinct %>%
+  group_by(site) %>%
+  mutate(site_dbh = mean(plot_dbh),
+         site_dbh_se = sqrt(var(plot_dbh) / n()),
+         site_ba = mean(plot_ba),
+         site_ba_se = sqrt(var(plot_ba) / n()),
+         site_n = mean(plot_n),
+         site_n_se = sqrt(var(plot_n) / n())) %>%
+  select(1, 9:14) %>%
   distinct
 
 saps_structure <- saps %>%
@@ -248,9 +257,9 @@ saps_structure <- saps %>%
   distinct %>%
   group_by(site, plot) %>%
   mutate(plot_dbh = mean(subplot_dbh),
-         plot_dbh_se = sqrt(var(subplot_dbh)) / sqrt(n()),
+         plot_dbh_se = sqrt(var(subplot_dbh) / n()),
          plot_n = 10000 * mean(subplot_n) / plot_size,
-         plot_n_se = 10000 * sqrt(var(subplot_n)) / sqrt(n()) / plot_size) %>%
+         plot_n_se = 10000 * sqrt(var(subplot_n) / n()) / plot_size) %>%
   select(site, plot, plot_dbh, plot_dbh_se, plot_n, plot_n_se) %>%
   distinct
 
@@ -313,46 +322,49 @@ sps_rii <- sps_rii %>%
 # Any of the trees, saplings, or biomass tibbles can be run through
 # Calculation of mean and variance follows Gregoire and Valentine 20XX?
 
-biomass_summary <- biomass %>%
+plot_biomass <- biomass %>%
   select(site, plot, subplot, biomass, agb, bgb) %>%
   left_join(site_areas, by = "site") %>%
   group_by(site, plot, subplot) %>%
-  dplyr::summarise(ttl_tau = mean(area) * ( sum(biomass) / plot_size),
-                   agb_tau = mean(area) * ( sum(agb) / plot_size),
-                   bgb_tau = mean(area)* ( sum(bgb) / plot_size)) %>%
+  summarise(ttl_tau = mean(area) * ( sum(biomass) / plot_size),
+            agb_tau = mean(area) * ( sum(agb) / plot_size),
+            bgb_tau = mean(area)* ( sum(bgb) / plot_size)) %>%
   group_by(site, plot) %>%
   left_join(site_areas, by = "site") %>%
   mutate(avg_plot_ttl = mean(ttl_tau),
          avg_plot_agb = mean(agb_tau),
          avg_plot_bgb = mean(bgb_tau),
-         var_plot_ttl = (1 / (n()-1) * sum((ttl_tau - avg_plot_ttl)^2 )) / n(),
-         var_plot_agb = (1 / (n()-1) * sum((agb_tau - avg_plot_agb)^2 )) / n(),
-         var_plot_bgb = (1 / (n()-1) * sum((bgb_tau - avg_plot_bgb)^2 )) / n(),
+         avg_plot_ttl_se = sqrt(var(ttl_tau) / n()),
+         avg_plot_agb_se = sqrt(var(agb_tau) / n()),
+         avg_plot_bgb_se = sqrt(var(bgb_tau) / n()),
          plot_ttl_ha = 10 * avg_plot_ttl / area,
          plot_agb_ha = 10 * avg_plot_agb / area,
          plot_bgb_ha = 10 * avg_plot_bgb / area,
-         plot_ttl_ha_se = 10 * var_plot_ttl / (area^2),
-         plot_agb_ha_se = 10 * var_plot_agb / (area^2),
-         plot_bgb_ha_se = 10 * var_plot_bgb / (area^2)) %>%
+         plot_ttl_ha_se = 10 * avg_plot_ttl_se / area,
+         plot_agb_ha_se = 10 * avg_plot_agb_se / area,
+         plot_bgb_ha_se = 10 * avg_plot_bgb_se / area) %>%
+  select(site, plot, plot_ttl_ha, plot_ttl_ha_se) %>%
+  distinct
+
+site_biomass <- plot_biomass %>%
   group_by(site) %>%
-  mutate(avg_site_ttl = mean(avg_plot_ttl),
-         avg_site_agb = mean(avg_plot_agb),
-         avg_site_bgb = mean(avg_plot_bgb),
-         var_site_ttl = (1 / (n()-1) * sum((avg_plot_ttl - avg_site_ttl)^2 )) / n(),
-         var_site_agb = (1 / (n()-1) * sum((avg_plot_agb - avg_site_agb)^2 )) / n(),
-         var_site_bgb = (1 / (n()-1) * sum((avg_plot_bgb - avg_site_bgb)^2 )) / n(),
-         site_ttl_ha = 10 * avg_site_ttl / area,
-         site_agb_ha = 10 * avg_site_agb / area,
-         site_bgb_ha = 10 * avg_site_bgb / area,
-         site_ttl_ha_se = 10 * var_site_ttl / (area^2),
-         site_agb_ha_se = 10 * var_site_agb / (area^2),
-         site_bgb_ha_se = 10 * var_site_bgb / (area^2))
+  select(site, plot_ttl_ha, plot_agb_ha, plot_bgb_ha) %>%
+  distinct %>%
+  mutate(site_ttl_ha = mean(plot_ttl_ha),
+         site_agb_ha = mean(plot_agb_ha),
+         site_bgb_ha = mean(plot_bgb_ha),
+         site_ttl_ha_se = sqrt(var(plot_ttl_ha) / n()),
+         site_agb_ha_se = sqrt(var(plot_agb_ha) / n()),
+         site_bgb_ha_se = sqrt(var(plot_bgb_ha) / n())) %>%
+  select(site, site_ttl_ha, site_ttl_ha_se, site_agb_ha, 
+         site_agb_ha_se, site_bgb_ha, site_bgb_ha_se) %>%
+  distinct
 
 # Print summary table of total biomass & aboveground vs belowground carbon
 # Note different units (biomass vs C) of reported values.
 
-biomass_c_summary <- biomass_summary %>%
-  select(plot, plot_ttl_ha, plot_ttl_ha_se, 
+biomass_c_summary <- plot_biomass %>%
+  select(plot, site, plot_ttl_ha, plot_ttl_ha_se, 
          plot_agb_ha, plot_agb_ha_se, 
          plot_bgb_ha, plot_bgb_ha_se) %>%
   mutate(plot_agb_c_ha = plot_agb_ha * 0.47,
@@ -369,7 +381,7 @@ cwd_summary <- cwd %>%
   distinct() %>%
   group_by(site, plot) %>%
   mutate(plot_mass_var = var(subplot_mass),
-         plot_mass_se = sqrt(var(subplot_mass)) / sqrt(n()),
+         plot_mass_se = sqrt(var(subplot_mass) / n()),
          n = n()) %>%
   ungroup() %>%
   select(site, plot, plot_mass, plot_mass_se) %>%
@@ -391,9 +403,9 @@ soil_summary <- soil %>%
   distinct() %>%
   group_by(site, plot) %>%
   mutate(plot_c = mean(subplot_c),
-         plot_c_se = sqrt(var(subplot_c)) / sqrt(n())) %>%
+         plot_c_se = sqrt(var(subplot_c) / n())) %>%
   select(site, plot, plot_c, plot_c_se) %>%
-  distinct()
+  distinct
 
 #-----------------------
 # Join all carbon pools
@@ -426,10 +438,10 @@ soil %>%
          plot_bd = mean(bulk_density),
          plot_poc = mean(percent_c),
          plot_c_dens = mean(c_dens),
-         plot_depth_se = sqrt(var(avg_depth)) / sqrt(n()),
-         plot_bd_se = sqrt(var(bulk_density)) / sqrt(n()),
-         plot_poc_se = sqrt(var(percent_c)) / sqrt(n()),
-         plot_c_dens_se = sqrt(var(c_dens)) / sqrt(n())) %>%
+         plot_depth_se = sqrt(var(avg_depth) / n()),
+         plot_bd_se = sqrt(var(bulk_density) / n()),
+         plot_poc_se = sqrt(var(percent_c) / n()),
+         plot_c_dens_se = sqrt(var(c_dens) / n())) %>%
   arrange(site, plot) %>%
   select(site, plot, 
          plot_bd, plot_bd_se,
