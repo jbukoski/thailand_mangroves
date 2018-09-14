@@ -72,6 +72,14 @@ raw_soil <- read_excel(paste0(in_dir, "thailand_data.xlsx"),
          -actual_depth_start, -actual_depth_stop, -salinity_ppt,
          -soil_color, -texture, -depth_1, -depth_2, -depth_3)
 
+raw_aqua <- read_excel(paste0(in_dir, "aquaculture_data.xlsx"),
+                       sheet="Soil", col_names = T) %>%
+  set_colnames(tolower(colnames(.))) %>%
+  set_colnames(gsub("[. /]", "_", colnames(.))) %>%
+  select(site, site_category, plot = angie_transect_id,
+         interval = d_interval, soil_depth = mean_soil__depth_cm,
+         bulk_density = soil_bulk_density_g_cm3, percent_c = soil_perc_c, c_dens = carbon_density)
+
 #-----------------------------------------
 # Specify necessary parameters
 
@@ -167,18 +175,12 @@ biomass <- bind_rows(mutate(trees, stage = "tree"), mutate(saps, stage = "saplin
 #-----------------------------------------------------------------------------
 # Processing for coarse woody debris (CWD)
 
-# Calculate biomass for the coarse-woody debris pool based on default mean 
-# diameters and densities given in Kauffman & Donato 2012
-
+# Convert CWD measurements to mass C in Mg/ha following Kauffman & Donato 2012
 # Mean specific gravities (g/cm^3) of CWD classes taken from K&D, 2012
-# Avg_diam is quadratic mean diameter in cm, density is g/cm^3 (i.e., Mg/m^3)
 
 cwd_params <- tibble(size = c("fine", "small", "medium", "large"),
                      density = c(0.48, 0.64, 0.71, 0.69),
                      avg_diam = c(0.43, 1.47, 4.52, NA))
-
-# Calculate mass and volume per plot for each size class, beginning with fine CWD
-# Volume in m^3 per ha and mass in Mg per ha
 
 cwd <- raw_cwd %>%
   dplyr::select(-remarks) %>%
@@ -212,11 +214,13 @@ soil <- raw_soil %>%
 
 #-------------------------------------------------------------------------------
 
-#------------------------------------------#
-# Forest structure and species composition #
-#------------------------------------------#
+#----------------------------------------#
+# Forest structure & species composition #
+#----------------------------------------#
 
-trees_strcture <- trees %>%
+# Compute tree and sapling based forest structure variables.
+
+trees_structure <- trees %>%
   select(site, plot, subplot, dbh_cm, status, sps_code, basal_area) %>%
   group_by(site, plot, subplot) %>%
   mutate(subplot_dbh = mean(dbh_cm),
@@ -235,150 +239,68 @@ trees_strcture <- trees %>%
          plot_n, plot_n_se) %>%
   distinct
 
-# Compute plot-wise species presence
-
-trees %>%
-  select(site, sps_code) %>%
-  group_by(site) %>%
-  distinct() %>%
-  arrange(site, sps_code) %>%
-  mutate(species = toString(sps_code)) %>%
-  select(-sps_code) %>%
-  distinct()
-
-# Compute counts for saplings
-
-trees_strcture <- trees %>%
-  select(site, plot, subplot, dbh_cm, status, sps_code, basal_area) %>%
+saps_structure <- saps %>%
+  select(site, plot, subplot, dbh_cm, status, sps_code) %>%
   group_by(site, plot, subplot) %>%
   mutate(subplot_dbh = mean(dbh_cm),
-         subplot_ba = sum(basal_area),
          subplot_n = n()) %>%
-  select(site, plot, subplot, subplot_dbh, subplot_ba, subplot_n) %>%
+  select(site, plot, subplot, subplot_dbh, subplot_n) %>%
   distinct %>%
   group_by(site, plot) %>%
   mutate(plot_dbh = mean(subplot_dbh),
          plot_dbh_se = sqrt(var(subplot_dbh)) / sqrt(n()),
-         plot_ba = 10000 * mean(subplot_ba) / plot_size,
-         plot_ba_se = 10000 * sqrt(var(subplot_ba)) / sqrt(n()) / plot_size,
          plot_n = 10000 * mean(subplot_n) / plot_size,
          plot_n_se = 10000 * sqrt(var(subplot_n)) / sqrt(n()) / plot_size) %>%
-  select(site, plot, plot_dbh, plot_dbh_se, plot_ba, plot_ba_se,
-         plot_n, plot_n_se) %>%
+  select(site, plot, plot_dbh, plot_dbh_se, plot_n, plot_n_se) %>%
   distinct
 
+# Compute relative importance index for each species at the site level
+# Compute rel density and rel dominance first, rel frequency later
 
-# Classify each plot by species
-# Species metrics at the plot level
-
-plot_sps <- trees %>%
+sps_rii <- trees %>%
   group_by(site) %>%
-  dplyr::mutate(plot_n = n(), 
-                plot_ba = sum(basal_area)) %>%
-  group_by(site, genus, species) %>%
-  dplyr::summarize(sps_ba = sum(basal_area),
-                   sps_n = n(),
-                   rel_sps_ba = mean(sps_ba)/mean(plot_ba) * 100,
-                   rel_sps_n = mean(sps_n)/mean(plot_n) * 100,
-                   rel_imp = (rel_sps_ba + rel_sps_n) / 2) %>%
-  dplyr::select(site, genus, species, rel_sps_ba, rel_sps_n, rel_imp) %>%
-  arrange(-rel_imp)
+  mutate(site_n = n(), 
+         site_ba = sum(basal_area)) %>%
+  group_by(site, sps_code) %>%
+  mutate(sps_ba = sum(basal_area),
+         sps_n = n(),
+         rel_sps_ba = mean(sps_ba)/mean(site_ba) * 100,
+         rel_sps_n = mean(sps_n)/mean(site_n) * 100,
+         rel_imp = (rel_sps_ba + rel_sps_n) / 2) %>%
+  select(site, sps_code, genus, species, rel_sps_ba, rel_sps_n, rel_imp) %>%
+  arrange(site, -rel_imp)
 
-plot_sps %>%
-  dplyr::select(-species) %>%
-  group_by(site, genus) %>%
-  filter(rel_imp > 1) %>%
-  summarise(a_rel_sps_n = sum(rel_sps_n),
-            b_rel_sps_ba = sum(rel_sps_ba),
-            c_rel_imp = sum(rel_imp)) %>%
-  gather(key, value, -site, -genus) %>%
-  mutate(key = factor(key, labels = c("Rel. Dens", "Rel. BA", "Rel. Imp."))) %>%
-  arrange(site, genus) %>%
-  ggplot(aes(x = key, y = value, fill = genus)) +
-  geom_bar(stat = "identity", position = "stack", width = 0.7) +
-  geom_bar(stat = "identity", position = "stack", color="black", 
-           show.legend=FALSE, width = 0.7) +
-  facet_grid(site ~ .) +
-  coord_flip() +
-  theme_bw() +
-  theme(text = element_text(size = 22)) +
-  labs(y = NULL,
-       x = NULL) +
-  scale_fill_discrete(name="Genera", 
-                      labels = c("Avicennia", 
-                                 "Bruguiera",
-                                 "Excoecaria",
-                                 "Rhizophora",
-                                 "Xylocarpus"))
+# Compute relative frequency
 
-# Calculate for subplots
+freq <- trees %>%
+  select(site, plot, sps_code) %>%
+  distinct %>%
+  mutate(presence = 1)
 
-subplot_sps <- trees %>%
-  group_by(site, plot, subplot) %>%
-  dplyr::mutate(agg_n = n(),
-                agg_ba = sum(basal_area)) %>%
-  group_by(site, plot, subplot, genus, species) %>%
-  dplyr::summarize(sps_ba = sum(basal_area),
-                   sps_n = n(),
-                   rel_sps_ba = mean(sps_ba)/mean(agg_ba)*100,
-                   rel_sps_n = mean(sps_n)/mean(agg_n)*100,
-                   rel_imp = (rel_sps_ba + rel_sps_n) / 2) %>%
-  dplyr::select(site, plot, subplot, genus, species, rel_sps_ba, rel_sps_n, rel_imp) %>%
-  arrange(plot, subplot, -rel_imp)
+freq_frame <- trees %>%
+  distinct(site, plot) %>%
+  left_join(expand(trees, plot, sps_code), by = "plot") %>%
+  left_join(freq, by = c("site", "plot", "sps_code")) %>%
+  mutate(presence = ifelse(is.na(presence), 0, presence))
 
-#----------------------------------------------------------------------------------------------
-#Summarize forest structure
+rel_freq <- freq_frame %>%
+  group_by(site, sps_code) %>%
+  summarise(sps_n = sum(presence),
+         ttl_n = n(),
+         rel_freq = 100 * sps_n / ttl_n) %>%
+  select(site, sps_code, rel_freq) %>%
+  filter(rel_freq > 0) %>%
+  arrange(site, -rel_freq)
 
-plot_structure <- trees %>%
-  group_by(site, plot) %>%
-  dplyr::summarise(n = n(), 
-                   ba = sum(basal_area),
-                   dbh = mean(dbh_cm),
-                   min_dbh = min(dbh_cm),
-                   max_dbh = max(dbh_cm)) %>%
-  mutate(plot_size = plot_size,
-         ba_per_ha = 10000*ba/plot_size,
-         dbh_per_ha = dbh,
-         n_per_ha = 10000*n/plot_size)
+# Join species importance indexes
 
-site_structure <- plot_structure %>%
-  group_by(site) %>%
-  dplyr::summarise(
-    n = mean(n_per_ha),
-    n_se = sd(n_per_ha) / sqrt(n_distinct(n)),
-    ba = mean(ba_per_ha),
-    ba_se = sd(ba_per_ha) / sqrt(n_distinct(ba_per_ha)),
-    dbh = mean(dbh_per_ha),
-    dbh_se = sd(dbh_per_ha) / sqrt(n_distinct(dbh_per_ha))
-  )
-
-trees %>%
-  group_by(site) %>%
-  ggplot() +
-  geom_histogram(aes(x = dbh_cm, fill = site), stat = "bin", binwidth = 1, colour = "black") +
-  facet_grid(site ~ .) +
-  theme_bw() +
-  labs(x = "DBH (cm)", y = "Frequency") +
-  theme(text = element_text(size = 22)) +
-  scale_fill_discrete(name = "Site")
-
-plot_structure %>%
-  select(site, plot, ba_per_ha, dbh_per_ha, n_per_ha) %>%
-  mutate(n_per_ha = n_per_ha/100) %>%
-  gather(key, value, -site, -plot) %>%
-  mutate(key = factor(key, labels = c("BA (sq.m/ha)", "Avg. DBH (cm)", "Trees/ha (100s)"))) %>%
-  arrange(site, key) %>%
-  ggplot(aes(x = site, group = site, y = value, fill = site)) +
-  stat_boxplot(geom='errorbar', width = 1) +
-  geom_boxplot() +
-  facet_grid(key ~ .) +
-  theme_bw() +
-  coord_flip() +
-  scale_fill_discrete(name = NULL) +
-  theme(legend.position="bottom") +
-  labs(x = NULL, y = NULL) +
-  theme(text = element_text(size = 24))
-
+sps_rii <- sps_rii %>%
+  left_join(rel_freq, by = c("site", "sps_code")) %>%
+  select(site, sps_code, genus, species, rel_sps_n, rel_freq, rel_sps_ba) %>%
+  distinct %>%
+  rowwise %>%
+  mutate(rel_imp = sum(rel_sps_n, rel_freq, rel_sps_ba) / 3) %>%
+  arrange(site, -rel_imp)
 
 #-------------------------------------------------------------------------------
 
@@ -458,9 +380,9 @@ cwd_summary <- cwd %>%
 
 #------------------------------------------------------------------------------
 
-#---------------#
-# Soil analysis #
-#---------------#
+#-----------------------------#
+# Analysis of soil properties #
+#-----------------------------#
 
 soil_summary <- soil %>%
   group_by(site, plot, subplot) %>%
@@ -488,144 +410,31 @@ c_summary <- bind_cols(agc = biomass_c_summary$plot_agb_c_ha,
   mutate(total = sum(agc, bgc, cwd, soc),
          total_se = sqrt(agc_se^2 + bgc_se^2 + cwd_se^2 + soc_se^2))
 
-
-#-----------------------------------------------------------------------------
-# Generate plots
-
-soil_plot %>%
-  filter(plot <= 7) %>%
-  ggplot(aes(x = plot, y = plot_soc, col = site)) + 
-  geom_point(size = 3) + 
-  geom_errorbar(aes(ymin = min_soc, 
-                    ymax = max_soc), width = 0.15,
-                size = 1.1) + 
-  labs(y = "Soil Organic Carbon (Mg C/ha)",
-       x = "Plot") +
-  theme_bw() +
-  theme(text = element_text(size = 24)) +
-  ylim(0, 1500) +
-  scale_colour_discrete(name="Site", 
-                      labels = c("Krabi", "Nakorn"))
-
-
-soil_site %>% 
-  ggplot(aes(x = site, y = soc)) + 
-  geom_errorbar(aes(ymin = soc - soc_se, 
-                    ymax = soc + soc_se), width = 0.05) + 
-  geom_point() + 
-  ggtitle("Soil Carbon Plot Means +/- 1 St. Error") +
-  ylab("Soil Organic Carbon (Mg/ha)") +
-  xlab("Site") +
-  theme_bw() +
-  ylim(0, 1000)
-
 #------------------------------------------------------------------------------
-# Add other relevant parameters to characterize the plot (i.e. mean DBH and Tons ag.biomass)
 
-error_summary <- trees_ci %>%
-  left_join(soil_site, by = c("site" = "site")) %>%
-  left_join(site_cwd, by = c("site" = "site")) %>%
-  dplyr::select(site, ag_se, bg_se, soc_se, cwd_se) %>%
-  mutate(ag_se = ag_se,
-         bg_se = bg_se,
-         soc_se = soc_se,
-         cwd_se = cwd_se) %>%
-  gather(pool, error, -site) %>%
-  arrange(site) %>%
-  mutate(pool = rep(c("agc", "bgc", "soc", "cwd"), 2))
+#---------------------------#
+# Summarize soil properties #
+#---------------------------#
 
-summary <- trees_ci %>%
-  dplyr::select(site, mean_biomass, ag_mean, bg_mean) %>%
-  left_join(soil_site, by = c("site" = "site")) %>%
-  left_join(site_cwd, by = c("site" = "site")) %>%
-  mutate(bgc = bg_mean *.46 * -1,
-         agc = ag_mean *.46,
-         soc = soc * -1,
-         cwd = cwd * 0.5) %>%
-  dplyr::select(site, agc, bgc, soc, cwd) %>%
-  gather(pool, value, -site) %>%
-  left_join(error_summary, by = c("site", "pool")) %>%
-  mutate(error2 = error)
+# Summarize by depth interval
+# Can insert the aquaculture data frame or the soil data frame
 
-##---------------------------------------------------------------------------------
-## Visualizing the data
-
-# Ordering of stacked bars is determined by levels of the factor
-
-test_dat <- tibble(
-  site = c(rep("Krabi", 4), rep("Nakorn", 4)),
-  pool = rep(c(rep("Above", 2), rep("Below", 2)), 2),
-  min_err = c(72.3, NA, -888.9 - 53.41, NA, 108 + 8.10, NA, -39.9 - 251 - 18 - 8.17, NA),
-  max_err = c(72.3  + 18.88, NA, -888.9, NA, 108 + 8.10 + 23.2 + 2.85, NA, -39.9 - 251, NA)
-)
-
-p1 <- summary %>% 
-  mutate(pool = factor(pool, levels = c("agc", "cwd", "soc", "bgc"))) %>%
-  ggplot(aes(x = site, y = value, fill = pool)) +
-  geom_bar(stat = "identity", width = 0.3) +
-  geom_bar(stat = "identity", width = 0.3, color="black", show.legend=FALSE)+
-  theme_bw() +
-  xlab("Site") +
-  ylab("Carbon storage (Mg C/ha)") +
-  ylim(-1000, 200) +
-  scale_fill_discrete(name="Ecosystem C Pools", 
-                      breaks = c("agc", "cwd", "bgc", "soc"),
-                      labels = c("Aboveground Biomass", 
-                                 "Coarse Woody Debris",
-                                 "Belowground Biomass",
-                                 "Soil Organic Carbon")) +
-  theme(text = element_text(size = 22))
-
-p1 +  
-  geom_linerange(aes(x = test_dat$site,
-                     ymin = test_dat$min_err, 
-                     ymax = test_dat$max_err)) +
-  geom_segment(aes(x = 0.95, xend = 1.05, y = -888.9 - 53.41, yend = -888.9 - 53.41)) +
-  geom_segment(aes(x = 0.95, xend = 1.05, y = 72.3  + 18.88, yend = 72.3  + 18.88)) +
-  geom_segment(aes(x = 1.95, xend = 2.05, 
-                   y = -39.9 - 251 - 18 - 8.17, 
-                   yend = -39.9 - 251 - 18 - 8.17)) +
-  geom_segment(aes(x = 1.95, xend = 2.05, 
-                   y = 108 + 8.10 + 23.2 + 2.85, 
-                   yend = 108 + 8.10 + 23.2 + 2.85))
-
-#-----------------------------------------------------------------------------------
-# Build a summary table for visualizations of the data at the subplot level 
-
-sp_summary <- trees %>%
-  group_by(site, plot, subplot) %>%
-  left_join(site_areas, by = "site") %>%
-  mutate(agb_tot = area*(sum(agb)/(pi*(7^2))),
-         agb_ha = (10*agb_tot)/area,
-         bgb_tot = area*(sum(bgb)/(pi*(7^2))),
-         bgb_ha = (10*bgb_tot)/area,
-         n_sps = nlevels(factor(sps_code))) %>%
-  left_join(meta, by = c("site" = "Site", "plot" = "Plot", "subplot" = "Subplot")) %>%
-  left_join(soil_summary, by = c("site", "plot", "subplot")) %>%
-  mutate(tot_c = soc + agb_ha + bgb_ha,
-         distance = `Distance from shoreline`) %>%
-  dplyr::select(site, plot, subplot, agb_tot, agb_ha, bgb_tot, bgb_ha, soc, tot_c, distance, n_sps) %>%
-  distinct()
-
-trees %>%
-  filter(plot <= 7) %>%
+soil %>%
+  select(site, plot, interval, bulk_density, percent_c, c_dens, avg_depth) %>%
   group_by(site, plot) %>%
-  summarize(n = n(),
-            agb_se = sd(agb)/sqrt(n) * 0.43,
-            agb = 10000*sum(agb)/plot_size/1000 * 0.43,
-            bgb_se = sd(bgb)/sqrt(n) * 0.43,
-            bgb = 10000*sum(bgb)/plot_size/1000 * 0.43) %>%
-  ggplot(aes(x = plot, y = agb + bgb, col = site)) + 
-  geom_point(size = 3) + 
-  geom_errorbar(aes(ymin = agb + bgb - agb_se - bgb_se, 
-                    ymax = agb + bgb + agb_se + bgb_se), width = 0.15,
-                size = 1.1) + 
-  labs(y = "Biomass Carbon (Mg C/ha)",
-       x = "Plot") +
-  theme_bw() +
-  theme(text = element_text(size = 24)) +
-  scale_colour_discrete(name="Site", 
-                        labels = c("Krabi", "Nakorn"))
+  mutate(plot_depth = mean(avg_depth),
+         plot_bd = mean(bulk_density),
+         plot_poc = mean(percent_c),
+         plot_c_dens = mean(c_dens),
+         plot_depth_se = sqrt(var(avg_depth)) / sqrt(n()),
+         plot_bd_se = sqrt(var(bulk_density)) / sqrt(n()),
+         plot_poc_se = sqrt(var(percent_c)) / sqrt(n()),
+         plot_c_dens_se = sqrt(var(c_dens)) / sqrt(n())) %>%
+  arrange(site, plot) %>%
+  select(site, plot, 
+         plot_bd, plot_bd_se,
+         plot_poc, plot_poc_se,
+         plot_c_dens, plot_c_dens_se,
+         plot_depth, plot_depth_se) %>%
+  distinct
 
-
-            
