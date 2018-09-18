@@ -343,7 +343,9 @@ plot_biomass <- biomass %>%
          plot_ttl_ha_se = 10 * avg_plot_ttl_se / area,
          plot_agb_ha_se = 10 * avg_plot_agb_se / area,
          plot_bgb_ha_se = 10 * avg_plot_bgb_se / area) %>%
-  select(site, plot, plot_ttl_ha, plot_ttl_ha_se) %>%
+  select(site, plot, plot_ttl_ha, plot_ttl_ha_se,
+         plot_agb_ha, plot_agb_ha_se,
+         plot_bgb_ha, plot_bgb_ha_se) %>%
   distinct
 
 site_biomass <- plot_biomass %>%
@@ -410,7 +412,9 @@ soil_summary <- soil %>%
 #-----------------------
 # Join all carbon pools
 
-c_summary <- bind_cols(agc = biomass_c_summary$plot_agb_c_ha,
+c_summary <- bind_cols(site = biomass_c_summary$site,
+                       plot = biomass_c_summary$plot,
+                       agc = biomass_c_summary$plot_agb_c_ha,
                        bgc = biomass_c_summary$plot_bgb_c_ha,
                        cwd = cwd_summary$plot_mass_c,
                        soc = soil_summary$plot_c,
@@ -418,9 +422,27 @@ c_summary <- bind_cols(agc = biomass_c_summary$plot_agb_c_ha,
                        bgc_se = biomass_c_summary$plot_bgb_c_ha_se,
                        cwd_se = cwd_summary$plot_mass_c_se,
                        soc_se = soil_summary$plot_c_se) %>%
-  rowwise() %>%
   mutate(total = sum(agc, bgc, cwd, soc),
-         total_se = sqrt(agc_se^2 + bgc_se^2 + cwd_se^2 + soc_se^2))
+         total_se = sqrt(agc_se^2 + bgc_se^2 + cwd_se^2 + soc_se^2)) %>%
+  group_by(site) %>%
+  mutate(agc_avg = mean(agc),
+         agc_se = sqrt(var(agc) / n()),
+         bgc_avg = mean(bgc),
+         bgc_se = sqrt(var(bgc) / n()),
+         cwd_avg = mean(cwd),
+         cwd_se = sqrt(var(cwd) / n()),
+         soc_avg = mean(soc),
+         soc_se = sqrt(var(soc) / n())) %>%
+  select(site, agc_avg, agc_se, bgc_avg, bgc_se, 
+         cwd_avg, cwd_se, soc_avg, soc_se) %>%
+  distinct
+  
+c_summary %>%
+  mutate(total = agc_avg + bgc_avg + cwd_avg + soc_avg,
+         total_se = sqrt(sum(agc_se^2 + bgc_se^2 + cwd_se^2 + soc_se^2))) %>%
+  View
+
+
 
 #------------------------------------------------------------------------------
 
@@ -443,8 +465,7 @@ soil %>%
          plot_poc_se = sqrt(var(percent_c) / n()),
          plot_c_dens_se = sqrt(var(c_dens) / n())) %>%
   arrange(site, plot) %>%
-  select(site, plot, 
-         plot_bd, plot_bd_se,
+  select(site, plot, plot_bd, plot_bd_se,
          plot_poc, plot_poc_se,
          plot_c_dens, plot_c_dens_se,
          plot_depth, plot_depth_se) %>%
