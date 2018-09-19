@@ -77,8 +77,15 @@ raw_aqua <- read_excel(paste0(in_dir, "aquaculture_data.xlsx"),
   set_colnames(tolower(colnames(.))) %>%
   set_colnames(gsub("[. /]", "_", colnames(.))) %>%
   select(site, site_category, plot = angie_transect_id,
-         interval = d_interval, soil_depth = mean_soil__depth_cm,
-         bulk_density = soil_bulk_density_g_cm3, percent_c = soil_perc_c, c_dens = carbon_density)
+         interval = d_interval, int_a, int_b, soil_depth = mean_soil__depth_cm,
+         bulk_density = soil_bulk_density_g_cm3, percent_c = soil_perc_c, 
+         c_dens = carbon_density) %>%
+  filter(plot != "P1")
+
+raw_aqua_structure <- read_excel(paste0(in_dir, "aquaculture_data.xlsx"),
+                                 sheet="structure", col_names = T,
+                                 col_types = c(rep("text", 3), rep("numeric", 17))) %>%
+  filter(plot != "P1")
 
 #-----------------------------------------
 # Specify necessary parameters
@@ -203,7 +210,7 @@ cwd <- raw_cwd %>%
   mutate(plot_mass = mean(subplot_mass))
 
 #------------------------------------------------------
-# Processing for soil
+# Processing for soil in both mangroves and aquaculture
 
 soil <- raw_soil %>%
   mutate(c_dens = bulk_density * (percent_c/100),
@@ -211,6 +218,13 @@ soil <- raw_soil %>%
                              ((avg_depth/100) - (100/100)) * 10000, 
                              ((int_b/100) - (int_a/100)) * 10000),
          soc_per_ha = int_volume * c_dens)
+
+
+
+raw_aqua <- raw_aqua %>%
+  mutate(int_volume = ((int_b/100) - (int_a/100)) * 10000,
+         soc_per_ha = int_volume * c_dens)
+
 
 #-------------------------------------------------------------------------------
 
@@ -237,16 +251,16 @@ trees_structure <- trees %>%
          plot_n_se = 10000 * sqrt(var(subplot_n) / n()) / plot_size) %>%
   select(site, plot, plot_dbh, plot_dbh_se, plot_ba, plot_ba_se,
          plot_n, plot_n_se) %>%
-  distinct %>%
-  group_by(site) %>%
-  mutate(site_dbh = mean(plot_dbh),
-         site_dbh_se = sqrt(var(plot_dbh) / n()),
-         site_ba = mean(plot_ba),
-         site_ba_se = sqrt(var(plot_ba) / n()),
-         site_n = mean(plot_n),
-         site_n_se = sqrt(var(plot_n) / n())) %>%
-  select(1, 9:14) %>%
-  distinct
+  distinct #%>%
+  # group_by(site) %>%
+  # mutate(site_dbh = mean(plot_dbh),
+  #        site_dbh_se = sqrt(var(plot_dbh) / n()),
+  #        site_ba = mean(plot_ba),
+  #        site_ba_se = sqrt(var(plot_ba) / n()),
+  #        site_n = mean(plot_n),
+  #        site_n_se = sqrt(var(plot_n) / n())) %>%
+  # select(1, 9:14) %>%
+  # distinct
 
 saps_structure <- saps %>%
   select(site, plot, subplot, dbh_cm, status, sps_code) %>%
@@ -422,27 +436,25 @@ c_summary <- bind_cols(site = biomass_c_summary$site,
                        bgc_se = biomass_c_summary$plot_bgb_c_ha_se,
                        cwd_se = cwd_summary$plot_mass_c_se,
                        soc_se = soil_summary$plot_c_se) %>%
-  mutate(total = sum(agc, bgc, cwd, soc),
-         total_se = sqrt(agc_se^2 + bgc_se^2 + cwd_se^2 + soc_se^2)) %>%
-  group_by(site) %>%
-  mutate(agc_avg = mean(agc),
-         agc_se = sqrt(var(agc) / n()),
-         bgc_avg = mean(bgc),
-         bgc_se = sqrt(var(bgc) / n()),
-         cwd_avg = mean(cwd),
-         cwd_se = sqrt(var(cwd) / n()),
-         soc_avg = mean(soc),
-         soc_se = sqrt(var(soc) / n())) %>%
-  select(site, agc_avg, agc_se, bgc_avg, bgc_se, 
-         cwd_avg, cwd_se, soc_avg, soc_se) %>%
-  distinct
+  rowwise %>%
+  mutate(ttl = agc + bgc + cwd + soc,
+         ttl_se = sqrt(agc_se^2 + bgc_se^2 + cwd_se^2 + soc_se^2)) # %>%
+  # group_by(site) %>%
+  # mutate(agc_avg = mean(agc),
+  #        agc_se = sqrt(var(agc) / n()),
+  #        bgc_avg = mean(bgc),
+  #        bgc_se = sqrt(var(bgc) / n()),
+  #        cwd_avg = mean(cwd),
+  #        cwd_se = sqrt(var(cwd) / n()),
+  #        soc_avg = mean(soc),
+  #        soc_se = sqrt(var(soc) / n())) %>%
+  # select(site, agc_avg, agc_se, bgc_avg, bgc_se, 
+  #        cwd_avg, cwd_se, soc_avg, soc_se) %>%
+  # distinct
   
-c_summary %>%
+site_c_summary <- c_summary %>%
   mutate(total = agc_avg + bgc_avg + cwd_avg + soc_avg,
-         total_se = sqrt(sum(agc_se^2 + bgc_se^2 + cwd_se^2 + soc_se^2))) %>%
-  View
-
-
+         total_se = sqrt(sum(agc_se^2 + bgc_se^2 + cwd_se^2 + soc_se^2)))
 
 #------------------------------------------------------------------------------
 
@@ -453,7 +465,7 @@ c_summary %>%
 # Summarize by depth interval
 # Can insert the aquaculture data frame or the soil data frame
 
-soil %>%
+plot_soil_summary <- soil %>%
   select(site, plot, interval, bulk_density, percent_c, c_dens, avg_depth) %>%
   group_by(site, plot) %>%
   mutate(plot_depth = mean(avg_depth),
@@ -471,3 +483,124 @@ soil %>%
          plot_depth, plot_depth_se) %>%
   distinct
 
+site_soil_summary <- aqua %>%
+  rename(plot_bd = bulk_density,
+         plot_poc = percent_c,
+         plot_depth = soil_depth,
+         plot_c_dens = c_dens) %>%
+  group_by(site) %>%
+  mutate(bd_avg = mean(plot_bd),
+         bd_se = sqrt(var(plot_bd) / n()),
+         poc_avg = mean(plot_poc),
+         poc_se = sqrt(var(plot_poc) / n()),
+         c_dens_avg = mean(plot_c_dens),
+         c_dens_se = sqrt(var(plot_c_dens) / n()),
+         depth_avg = mean(plot_depth),
+         depth_se = sqrt(var(plot_depth) / n())) %>%
+  select(site, depth_avg, depth_se, bd_avg, bd_se, poc_avg,
+         poc_se, c_dens_avg, c_dens_se) %>%
+  distinct 
+
+#----------------------------------------------------------------
+
+#-----------------------------#
+# Aquaculture C stock summary #
+#-----------------------------#
+
+aqua <- raw_aqua %>%
+  left_join(raw_aqua_structure, by = c("site", "plot"))
+
+aqua_site <- aqua %>%
+  group_by(site, plot) %>%
+  mutate(ttl_soc_ha = sum(soc_per_ha)) %>%
+  group_by(site) %>%
+  mutate(agc_avg = mean(ttl_agc_ha),
+         agc_se = sqrt(var(ttl_agc_ha) / n()),
+         bgc_avg = mean(ttl_bgc_ha),
+         bgc_se = sqrt(var(ttl_bgc_ha) / n()),
+         soc_avg = mean(ttl_soc_ha),
+         soc_se = sqrt(var(ttl_soc_ha) / n())) %>%
+  select(site, agc_avg, agc_se, bgc_avg, bgc_se, soc_avg, soc_se) %>%
+  distinct %>%
+  mutate(ttl_ha = agc_avg + bgc_avg + soc_avg,
+         ttl_se = sqrt(sum(agc_se^2 + bgc_se^2 + soc_se^2)))
+
+#-------------------------------------------------------------------------
+
+#----------------------#
+# Statistical analyses #
+#----------------------#
+
+?aov
+
+# Test for significant differences in forest structure as function of site
+
+structure <- trees_structure %>%
+  left_join(plot_biomass, by = c("site", "plot"))
+
+krabi_structure <- trees_structure %>%
+  filter(site == "Krabi") %>%
+  left_join(plot_biomass, by = c("site", "plot"))
+
+panang_structure <- trees_structure %>%
+  filter(site == "Nakorn") %>%
+  left_join(plot_biomass, by = c("site", "plot"))
+
+shapiro.test(krabi_structure$plot_dbh)
+shapiro.test(krabi_structure$plot_ba)
+shapiro.test(krabi_structure$plot_n)
+shapiro.test(krabi_structure$plot_ttl_ha)
+
+shapiro.test(panang_structure$plot_dbh)
+shapiro.test(panang_structure$plot_ba)
+shapiro.test(panang_structure$plot_n)
+shapiro.test(panang_structure$plot_ttl_ha)
+
+
+structure$site <- as.factor(structure$site)
+
+dbh_signif <- aov(plot_dbh ~ site, data = structure)
+ba_signif <- aov(plot_ba ~ site, data = structure)
+dens_signif <- aov(plot_n ~ site, data = structure)
+biomass_signif <- kruskal.test(plot_ttl_ha ~ site, data = structure)
+
+summary(dbh_signif)
+summary(ba_signif)
+summary(dens_signif)
+print(biomass_signif) # significant difference at p < 0.01
+
+# Carbon stocks
+
+krabi_c <- c_summary %>%
+  filter(site == "Krabi")
+
+panang_c <- c_summary %>%
+  filter(site == "Nakorn")
+
+shapiro.test(krabi_c$agc) # fails at p < 0.5
+shapiro.test(krabi_c$bgc)
+shapiro.test(krabi_c$cwd)
+shapiro.test(krabi_c$soc)
+shapiro.test(krabi_c$ttl)
+
+
+shapiro.test(panang_c$agc) # fails
+shapiro.test(panang_c$bgc)
+shapiro.test(panang_c$cwd) # fails at p < 0.1
+shapiro.test(panang_c$soc)
+shapiro.test(panang_c$ttl)
+
+c_summary$site <- as.factor(c_summary$site)
+
+agc_signif <- kruskal.test(agc ~ site, data = c_summary)
+bgc_signif <- aov(bgc ~ site, data = c_summary)
+cwd_signif <- kruskal.test(cwd ~ site, data = c_summary)
+soc_signif <- aov(soc ~ site, data = c_summary)
+ttl_signif <- aov(ttl ~ site, data = c_summary)
+
+
+print(agc_signif) # significant difference at p < 0.01
+summary(bgc_signif) # significant difference at p < 0.01
+print(cwd_signif) 
+summary(soc_signif) # significant difference at p < 0.01
+summary(ttl_signif) 
