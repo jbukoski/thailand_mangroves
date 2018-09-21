@@ -438,19 +438,19 @@ c_summary <- bind_cols(site = biomass_c_summary$site,
                        soc_se = soil_summary$plot_c_se) %>%
   rowwise %>%
   mutate(ttl = agc + bgc + cwd + soc,
-         ttl_se = sqrt(agc_se^2 + bgc_se^2 + cwd_se^2 + soc_se^2)) # %>%
-  # group_by(site) %>%
-  # mutate(agc_avg = mean(agc),
-  #        agc_se = sqrt(var(agc) / n()),
-  #        bgc_avg = mean(bgc),
-  #        bgc_se = sqrt(var(bgc) / n()),
-  #        cwd_avg = mean(cwd),
-  #        cwd_se = sqrt(var(cwd) / n()),
-  #        soc_avg = mean(soc),
-  #        soc_se = sqrt(var(soc) / n())) %>%
-  # select(site, agc_avg, agc_se, bgc_avg, bgc_se, 
-  #        cwd_avg, cwd_se, soc_avg, soc_se) %>%
-  # distinct
+         ttl_se = sqrt(agc_se^2 + bgc_se^2 + cwd_se^2 + soc_se^2)) %>%
+  group_by(site) %>%
+  mutate(agc_avg = mean(agc),
+         agc_se = sqrt(var(agc) / n()),
+         bgc_avg = mean(bgc),
+         bgc_se = sqrt(var(bgc) / n()),
+         cwd_avg = mean(cwd),
+         cwd_se = sqrt(var(cwd) / n()),
+         soc_avg = mean(soc),
+         soc_se = sqrt(var(soc) / n())) %>%
+  select(site, agc_avg, agc_se, bgc_avg, bgc_se,
+         cwd_avg, cwd_se, soc_avg, soc_se) %>%
+  distinct
   
 site_c_summary <- c_summary %>%
   mutate(total = agc_avg + bgc_avg + cwd_avg + soc_avg,
@@ -523,7 +523,21 @@ aqua_site <- aqua %>%
   select(site, agc_avg, agc_se, bgc_avg, bgc_se, soc_avg, soc_se) %>%
   distinct %>%
   mutate(ttl_ha = agc_avg + bgc_avg + soc_avg,
-         ttl_se = sqrt(sum(agc_se^2 + bgc_se^2 + soc_se^2)))
+         ttl_se = sqrt(sum(agc_se^2 + bgc_se^2 + soc_se^2))) %>%
+  ungroup() %>%
+  mutate(site = "krabi_aqua")
+
+#----------------------------------------------------------------------
+
+#---------------------------#
+# Export files for plotting #
+#---------------------------#
+
+full_c <- site_c_summary %>%
+  bind_rows(aqua_site) %>%
+  select(-total, - total_se, -ttl_ha, -ttl_se)
+
+write_csv(full_c, paste0(out_dir, "c_summary.csv"))
 
 #-------------------------------------------------------------------------
 
