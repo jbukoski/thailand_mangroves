@@ -174,11 +174,17 @@ pred_2007 <- raster::predict(lsat2007, svm_lsat) %>%
 pred_2017 <- raster::predict(lsat2017, svm_lsat) %>%
   focal(w = threes, fun = modal)
 
+writeRaster(pred_1987, paste0(out_dir, site, "1987_", "svm.tif"), format = "GTiff", overwrite = TRUE)
+writeRaster(pred_1997, paste0(out_dir, site, "1997_", "svm.tif"), format = "GTiff", overwrite = TRUE)
+writeRaster(pred_2007, paste0(out_dir, site, "2007_", "svm.tif"), format = "GTiff", overwrite = TRUE)
+writeRaster(pred_2017, paste0(out_dir, site, "2017_", "svm.tif"), format = "GTiff", overwrite = TRUE)
+
+
 #--------------------------------------
 # Table summary values
 
 data <- rbind(
-  c( tapply(pred_1987, pred_1987[], FUN = sum) * 0.09, 1987),
+  c(tapply(pred_1987, pred_1987[], FUN = sum) * 0.09, 1987),
   c(tapply(pred_1997, pred_1997[], FUN = sum) * 0.09, 1997),
   c(tapply(pred_2007, pred_2007[], FUN = sum) * 0.09, 2007),
   c(tapply(pred_2017, pred_2017[], FUN = sum) * 0.09, 2017)

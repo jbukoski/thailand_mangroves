@@ -18,7 +18,6 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 # Adjust the below values to output the correct datasets
 
 site <- "krabi_"
-sensor <- "TM" # Enter either TM or OLI depending on input data sensor
 
 #---------------------------
 # Load 2017 LSAT as a template

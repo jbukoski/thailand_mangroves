@@ -82,5 +82,4 @@ names(lsat) <- texture_names
 #----------------------
 # Write out files to in_dir for feeding into build_classification scripts
 
-writeRaster(lsat, paste0(in_dir, year, site, "lsat.tif"),
-            format = "GTiff", overwrite = TRUE)
+writeRaster(lsat, paste0(in_dir, year, site, "lsat.tif"), format = "GTiff", overwrite = TRUE)
