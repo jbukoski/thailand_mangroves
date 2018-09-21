@@ -13,6 +13,7 @@ library(RStoolbox)
 library(sf)
 library(sp)
 library(tidyverse)
+library(ggthemes)
 
 #----------------------
 # Load in helper functions
@@ -172,12 +173,6 @@ pred_2007 <- raster::predict(lsat2007, svm_lsat) %>%
   focal(w = threes, fun = modal)
 pred_2017 <- raster::predict(lsat2017, svm_lsat) %>%
   focal(w = threes, fun = modal)
-
-par(mfrow = c(2,2))
-plot(pred_1987, main = '1987')
-plot(pred_1997, main = '1997')
-plot(pred_2007, main = '2007')
-plot(pred_2017, main = '2017')
 
 #--------------------------------------
 # Table summary values
