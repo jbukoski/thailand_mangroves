@@ -465,6 +465,8 @@ site_c_summary <- c_summary %>%
 # Summarize by depth interval
 # Can insert the aquaculture data frame or the soil data frame
 
+# Plot wise summary of soil parameters
+
 plot_soil_summary <- soil %>%
   select(site, plot, interval, bulk_density, percent_c, c_dens, avg_depth) %>%
   group_by(site, plot) %>%
@@ -483,6 +485,8 @@ plot_soil_summary <- soil %>%
          plot_depth, plot_depth_se) %>%
   distinct
 
+# Site wise summary of soil parameters
+
 site_soil_summary <- aqua %>%
   rename(plot_bd = bulk_density,
          plot_poc = percent_c,
@@ -500,6 +504,35 @@ site_soil_summary <- aqua %>%
   select(site, depth_avg, depth_se, bd_avg, bd_se, poc_avg,
          poc_se, c_dens_avg, c_dens_se) %>%
   distinct 
+
+
+# Combine forest and aquaculture soil data frames and write out to CSV
+
+all_soils <- aqua %>%
+  mutate(plot = as.numeric(plot),
+         site = "krabi_aqua") %>%
+  rename(avg_depth = soil_depth) %>%
+  bind_rows(soil) %>%
+  select(site, plot, interval, bulk_density, percent_c, c_dens, avg_depth)
+
+soil_intervals <- all_soils %>%
+  select(site, plot, interval, bulk_density, percent_c, c_dens, avg_depth) %>%
+  group_by(site, interval) %>%
+  mutate(depth = mean(avg_depth),
+         bd = mean(bulk_density),
+         poc = mean(percent_c),
+         int_c_dens = mean(c_dens),
+         depth_se = sqrt(var(avg_depth) / n()),
+         bd_se = sqrt(var(bulk_density) / n()),
+         poc_se = sqrt(var(percent_c) / n()),
+         int_c_dens_se = sqrt(var(c_dens) / n())) %>%
+  arrange(site, plot) %>%
+  select(site, interval, depth, bd, poc, int_c_dens,
+         depth_se, bd_se, poc_se, int_c_dens_se) %>%
+  distinct
+
+write_csv(soil_intervals, paste0(out_dir, "soil_intervals.csv"))
+
 
 #----------------------------------------------------------------
 
@@ -537,7 +570,7 @@ full_c <- site_c_summary %>%
   bind_rows(aqua_site) %>%
   select(-total, - total_se, -ttl_ha, -ttl_se)
 
-write_csv(full_c, paste0(out_dir, "c_summary.csv"))
+#write_csv(full_c, paste0(out_dir, "c_summary.csv"))
 
 #-------------------------------------------------------------------------
 

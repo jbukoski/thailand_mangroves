@@ -2,6 +2,8 @@
 
 library(tidyverse)
 library(ggthemes)
+library(gridExtra)
+
 
 # Specify data directory
 
@@ -56,11 +58,101 @@ c_2_plot %>%
   guides(fill = guide_legend(title = NULL)) +
   scale_y_continuous(breaks = seq(0, 1400, by = 200))
 
+#-------------------------------------------------------------
+# Plot soil parameters by depth interval
 
+soil <- read_csv(paste0(data_dir, "soil_intervals.csv")) %>%
+  mutate(depth_int = ifelse(interval == 1, -15,
+                            ifelse(interval == 2, -30,
+                                   ifelse(interval == 3, -50,
+                                          ifelse(interval == 4, -100, -200))))) %>%
+  rename(c_dens = int_c_dens,
+         c_dens_se = int_c_dens_se) %>%
+  mutate(c_dens = c_dens * 1000,
+         c_dens_se = c_dens_se * 1000)
 
+p_bd <- soil %>%
+  select(site, interval, bd, bd_se, depth_int) %>%
+  mutate(interval = interval * -1) %>%
+  filter(site == "Krabi") %>%
+  ggplot(aes(y = depth_int, x = bd)) +
+  geom_errorbarh(data = filter(soil, site == "Krabi"),
+                 aes(xmax = bd + bd_se, xmin = bd - bd_se), height = 3, color = "blue") +
+  geom_point(data = filter(soil, site == "Krabi"), color = "blue", shape = 19) +
+  geom_path(data = filter(soil, site == "Krabi"), color = "blue") +
+  geom_errorbarh(data = filter(soil, site == "krabi_aqua"),
+                 aes(xmax = bd + bd_se, xmin = bd - bd_se), height = 3, color = "blue") +
+  geom_point(data = filter(soil, site == "krabi_aqua"), color = "blue", shape = 19) +
+  geom_path(data = filter(soil, site == "krabi_aqua"), linetype = 2, color = "blue" ) +
+  geom_errorbarh(data = filter(soil, site == "Nakorn"),
+                   aes(xmax = bd + bd_se, xmin = bd - bd_se), height = 3) +
+  geom_point(data = filter(soil, site == "Nakorn"), shape = 4, fill = "black") +
+  geom_path(data = filter(soil, site == "Nakorn")) +
+  theme_tufte() +
+  scale_y_continuous(breaks = seq(0, -200, by = -25),
+                     labels = c("0", "", "50", "", "100", "", "150", "", "200")) +
+  scale_x_continuous(breaks = seq(0.25, 1.5, by = 0.25), position = "top") +
+  ylab("Depth (cm)") +
+  xlab(expression("Bulk Density (g cm"^-3*")")) +
+  theme(axis.line.x = element_line(color="black", size = 0.2),
+        axis.line.y = element_line(color="black", size = 0.2))
 
+p_poc <- soil %>%
+  select(site, interval, poc, poc_se, depth_int) %>%
+  mutate(interval = interval * -1) %>%
+  filter(site == "Krabi") %>%
+  ggplot(aes(y = depth_int, x = poc)) +
+  geom_errorbarh(data = filter(soil, site == "Krabi"),
+                 aes(xmax = poc + poc_se, xmin = poc - poc_se), height = 3, color = "blue") +
+  geom_point(data = filter(soil, site == "Krabi"), color = "blue", shape = 19) +
+  geom_path(data = filter(soil, site == "Krabi"), color = "blue") +
+  geom_errorbarh(data = filter(soil, site == "krabi_aqua"),
+                 aes(xmax = poc + poc_se, xmin = poc - poc_se), height = 3, color = "blue") +
+  geom_point(data = filter(soil, site == "krabi_aqua"), color = "blue", shape = 19) +
+  geom_path(data = filter(soil, site == "krabi_aqua"), linetype = 2, color = "blue" ) +
+  geom_errorbarh(data = filter(soil, site == "Nakorn"),
+                 aes(xmax = poc + poc_se, xmin = poc - poc_se), height = 3) +
+  geom_point(data = filter(soil, site == "Nakorn"), shape = 4, fill = "black") +
+  geom_path(data = filter(soil, site == "Nakorn")) +
+  theme_tufte() +
+  ylab("Depth (cm)") +
+  xlab(expression("Percent Organic Carbon (%)"^{ }*"")) +
+  scale_y_continuous(breaks = seq(0, -200, by = -25)) +
+  scale_x_continuous(breaks = seq(1, 6, by = 1), position = "top") + 
+  theme(axis.title.x = element_text(margin = margin(t = 2000)),
+        axis.line.x = element_line(color="black", size = 0.2),
+        axis.line.y = element_line(color="black", size = 0.2),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank())
+  
 
+p_c_dens <- soil %>%
+  select(site, interval, c_dens, c_dens_se, depth_int) %>%
+  mutate(interval = interval * -1) %>%
+  ggplot(aes(y = depth_int, x = c_dens)) +
+  geom_errorbarh(data = filter(soil, site == "Krabi"),
+                 aes(xmax = c_dens + c_dens_se, xmin = c_dens - c_dens_se), height = 3, color = "blue") +
+  geom_point(data = filter(soil, site == "Krabi"), color = "blue", shape = 19) +
+  geom_path(data = filter(soil, site == "Krabi"), color = "blue") +
+  geom_errorbarh(data = filter(soil, site == "krabi_aqua"),
+                 aes(xmax = c_dens + c_dens_se, xmin = c_dens - c_dens_se), height = 3, color = "blue") +
+  geom_point(data = filter(soil, site == "krabi_aqua"), color = "blue", shape = 19) +
+  geom_path(data = filter(soil, site == "krabi_aqua"), linetype = 2, color = "blue" ) +
+  geom_errorbarh(data = filter(soil, site == "Nakorn"),
+                 aes(xmax = c_dens + c_dens_se, xmin = c_dens - c_dens_se), height = 3) +
+  geom_point(data = filter(soil, site == "Nakorn"), shape = 4, fill = "black") +
+  geom_path(data = filter(soil, site == "Nakorn")) +
+  theme_tufte() +
+  ylab("Depth (cm)") +
+  xlab(expression("Soil Carbon Density (mg C cm"^-3*")")) +
+  scale_x_continuous(position = "top", breaks = seq(0, 40, by = 5)) +
+  scale_y_continuous(breaks = seq(0, -200, by = -25)) +
+  theme(axis.line.x = element_line(color="black", size = 0.2),
+        axis.line.y = element_line(color="black", size = 0.2),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank())
 
+grid.arrange(p_bd, p_poc, p_c_dens, nrow = 1)
 
 
 
