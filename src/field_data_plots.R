@@ -15,8 +15,15 @@ c_summary <- read_csv(paste0(data_dir, "c_summary.csv"))
 #----------------------------------------------------
 # Plot C summary values
 
-c_2_plot <- c_summary %>% 
-  gather(-site, -agc_se, -bgc_se, -cwd_se, -soc_se,
+c_2_plot <- c_summary %>%
+  rowwise() %>%
+  mutate(ttl = ifelse(site == "Krabi" | site == "Nakorn", 
+                      agc_avg + bgc_avg + cwd_avg + soc_avg,
+                      agc_avg + bgc_avg + soc_avg),
+         ttl_se = ifelse(site == "Krabi" | site == "Nakorn", 
+                         sqrt(sum(agc_se^2 + bgc_se^2 + cwd_se^2 + soc_se^2)),
+                         sqrt(sum(agc_se^2 + bgc_se^2 + soc_se^2)))) %>%
+  gather(-site, -agc_se, -bgc_se, -cwd_se, -soc_se, -ttl_se, 
          key = "pool", value = "mean") %>%
   gather(-site, -pool, -mean, key = "se_pool", value = "se") %>%
   arrange(site, pool) %>%
@@ -25,37 +32,36 @@ c_2_plot <- c_summary %>%
   separate(se_pool, into = c("pool_se", "trash"), sep = "_") %>%
   select(-trash) %>%
   filter(pool == pool_se) %>%
-  select(-pool_se) %>%
+  select(-pool_se) %>% 
   rowwise %>%
   mutate(site = ifelse(site == "krabi_aqua", "KRE Aquaculture",
                        ifelse(site == "Krabi", "KRE Mangrove",
-                              ifelse(site == "Nakorn", "PPM Mangrove", "PPM Aquaculture"))),
-         se_sq = se^2,
-         position = ifelse(pool %in% c("agc", "cwd"), "above", "below")) %>%
-  filter(!is.na(mean)) %>%
-  group_by(site, position) %>%
-  mutate(ag_se = ifelse(pool %in% c("agc", "cwd"), sqrt(sum(se_sq)), NA),
-         bg_se = ifelse(pool %in% c("bgc", "soc"), sqrt(sum(se_sq)), NA),
-         total = sum(mean),
-         se = ifelse(is.na(ag_se), bg_se, ag_se)) %>%
-  select(site, position, pool, mean, total, se, ag_se, bg_se) %>%
-  mutate(mean = ifelse(position == "below", mean * -1, mean),
-         se = ifelse(position == "below", se * -1, se),
-         upper = ifelse(position == "above", total + se, -1 * (total - 50)),
-         lower = ifelse(position == "below", -1 * (total - se), (total- 50)),
-         total = ifelse(position == "below", total * -1, total),
-         err_bar = se + total)
+                              ifelse(site == "Nakorn", "PPM Mangrove", "PPM Aquaculture")))) %>%
+  add_row(site = "PPM Aquaculture", pool = "agc")
 
+c_2_plot_err <- c_2_plot %>%
+  filter(pool == "ttl")
 
 c_2_plot %>%
+  filter(pool != "ttl") %>%
   ggplot(aes(x = site, y = mean)) +
-  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.1) +
-  geom_bar(aes(fill = pool), stat = "identity") +
-  theme_tufte() +
-  theme(legend.position = "none") +
-  theme(axis.title.x = element_blank(),
-        axis.title.y = element_blank(),
-        panel.border = element_rect(colour = "black", fill = NA))
+  geom_errorbar(data = c_2_plot_err, aes(ymin = mean - 10, ymax = mean + se), width = 0.05) +
+  geom_bar(aes(fill = pool), stat = "identity", width = 0.5, color = "black") +
+  scale_fill_colorblind(labels = c("Aboveground biomass", "Belowground biomass", 
+                             "Coarse woody debris", "Soil organic carbon")) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        axis.title.x = element_blank()) +
+  ylab("Organic C (Mg/ha)") +
+  guides(fill = guide_legend(title = NULL)) +
+  scale_y_continuous(breaks = seq(0, 1400, by = 200))
+
+
+
+
+
+
+
 
 
 #-----------------------------------------------------------------------------
