@@ -17,7 +17,8 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 #----------------------
 # Adjust the below values to output the correct datasets
 
-site <- "krabi_"
+site <- "nakorn_"
+roi <- "ppm_" # kre_ or ppm_
 
 #---------------------------
 # Load 2017 LSAT as a template
@@ -28,13 +29,13 @@ lsatCRS <- crs(lsat2017)
 #---------------------------
 # Load site mask
 
-mask_vec <- readOGR(paste0(in_dir, "kre_boundary.shp")) %>%
+mask_vec <- readOGR(paste0(in_dir, roi, "boundary.shp")) %>%
   spTransform(lsatCRS)
 
 empty_rast <- raster(nrow = lsat2017@nrows, ncols = lsat2017@ncols, 
                      ext = lsat2017@extent, crs = lsat2017@crs)
 
-mask_rast <- rasterize(mask_vec, empty_rast, field = "name")
+mask_rast <- rasterize(mask_vec, empty_rast, field = "id")
 
 #----------------------
 # Load in data:
@@ -43,7 +44,7 @@ mask_rast <- rasterize(mask_vec, empty_rast, field = "name")
 
 lsat2017 <- mask(lsat2017, mask_rast)
 
-lsat1987 <- brick(paste0(raw_dir, "raw_", "1987_", site, "lsat.tif")) %>%
+lsat1987 <- stack(paste0(raw_dir, "raw_", "1987_", site, "lsat.tif")) %>%
   projectRaster(crs = lsatCRS) %>%
   resample(lsat2017, method = "bilinear") %>%
   mask(mask_rast)

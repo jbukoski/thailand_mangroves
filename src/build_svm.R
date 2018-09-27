@@ -4,7 +4,9 @@
 # Input files are preprocessed landsat images (see lsat_preproceesing.R)
 
 library(cluster)
+library(doParallel)
 library(e1071)
+library(foreach)
 library(randomForest)
 library(raster)
 library(rgdal)
@@ -31,7 +33,7 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 
 year_train <- "2017_"
 year_valid <- "2007_"
-site <- "krabi_"
+site <- "nakorn_"
 split <- 1     # specify percentage to be used for training
 seed <- round(runif(1, 1, 100000))
 
@@ -87,15 +89,30 @@ train_df <- plyr::ldply(rast, rbind)
 colnames(train_df) <- c("class", band_names)
 train_df$class <- as.factor(train_df$class)
 
-svm_lsat <- svm(class ~ blue + green + red + nir + swir1 + swir2 + 
-                  ndvi + ndwi + srtm + brightness + greenness + avg3, 
+svm_lsat <- svm(class ~ blue + green + red + nir + 
+                  ndvi + ndwi + brightness + greenness + avg3, 
                 data = train_df, cost = 100, gamma = 1)
 
 #----------------------------------
 # TC: Run prediction on training year and validation year & visualize
 
-lsat_pred <- raster::predict(lsat, svm_lsat)
-valid_pred <- raster::predict(lsat_valid, svm_lsat)
+useCores <- detectCores() - 2
+cl <- makeCluster(useCores)
+registerDoParallel(cl)
+
+rast_stack <- list(lsat, lsat_valid)
+
+par_output <- foreach(i=1:length(rast_stack), packages = c("raster", "e1071")) %dopar% {
+  library(e1071)
+  library(raster)
+  r <- rast_stack[[i]]
+  raster::predict(r, svm_lsat)
+}
+
+lsat_pred <- par_output[[1]]
+valid_pred <- par_output[[2]]
+
+stopCluster(cl)
 
 #----------------------------------
 # Visualize the classifications
@@ -165,6 +182,7 @@ lsat2007 <- brick(paste0(in_dir, "2007_", site, "lsat.tif")) %>%
 lsat2017 <- brick(paste0(in_dir, "2017_", site, "lsat.tif")) %>%
   setNames(band_names)
 
+
 pred_1987 <- raster::predict(lsat1987, svm_lsat) %>%
   focal(w = threes, fun = modal)
 pred_1997 <- raster::predict(lsat1997, svm_lsat) %>%
@@ -173,6 +191,35 @@ pred_2007 <- raster::predict(lsat2007, svm_lsat) %>%
   focal(w = threes, fun = modal)
 pred_2017 <- raster::predict(lsat2017, svm_lsat) %>%
   focal(w = threes, fun = modal)
+
+
+useCores <- detectCores() - 1
+cl <- makeCluster(useCores)
+registerDoParallel(cl)
+
+rast_stack <- list(lsat1987, lsat1997, lsat2007, lsat2017)
+
+par_output <- foreach(i=1:length(rast_stack)) %dopar% {
+  
+  library(e1071)
+  library(raster)
+  library(tidyverse)
+  
+  r <- rast_stack[[i]]
+  raster::predict(r, svm_lsat) %>%
+    focal(w = threes, fun = modal)
+  
+}
+
+stopCluster(cl)
+
+par(mfrow = c(1,1))
+plot(par_output[[1]], main = "1987")
+plot(par_output[[2]], main = "1997")
+plot(par_output[[3]], main = "2007")
+plot(par_output[[4]], main = "2017")
+
+# Write to file
 
 writeRaster(pred_1987, paste0(out_dir, site, "1987_", "svm.tif"), format = "GTiff", overwrite = TRUE)
 writeRaster(pred_1997, paste0(out_dir, site, "1997_", "svm.tif"), format = "GTiff", overwrite = TRUE)
@@ -197,3 +244,5 @@ test_data <- melt(data, id="year")
 ggplot(data=test_data,
        aes(x=year, y=value, colour=variable)) +
   geom_line()
+
+

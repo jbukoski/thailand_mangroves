@@ -19,8 +19,8 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 #----------------------
 # Adjust the below values to output the correct datasets
 
-year <- "2017_"
-site <- "krabi_"
+year <- "1987_"
+site <- "nakorn_"
 
 # Enter 4TM, 5TM or OLI depending on input data sensor
 
@@ -76,7 +76,8 @@ ndvi_var_9 <- focal(ndvi, w = nines, fun = var)
 
 texture_names <- c(names(lsat), "avg3", "avg5", "avg9", "var3", "var5", "var9")
 
-lsat <- stack(lsat, ndvi_avg_3, ndvi_avg_5, ndvi_avg_9, ndvi_var_3, ndvi_var_5, ndvi_var_9)
+lsat <- stack(lsat, ndvi_avg_3, ndvi_avg_5, ndvi_avg_9, 
+              ndvi_var_3, ndvi_var_5, ndvi_var_9)
 names(lsat) <- texture_names
 
 #----------------------

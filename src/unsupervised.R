@@ -30,7 +30,7 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 
 year_train <- "2017_"
 year_valid <- "2007_"
-site <- "krabi_"
+site <- "nakorn_"
 split <- 1     # specify percentage to be used for training
 seed <- round(runif(1, 1, 100000))
 
@@ -48,31 +48,14 @@ band_names <- c("blue", "green", "red", "nir", "swir1", "swir2", "srtm",
 lsat <- brick(paste0(in_dir, year_train, site, "lsat.tif"))
 names(lsat) <- band_names
 
-lsat_valid <- brick(paste0(in_dir, year_valid, site, "lsat.tif"))
-names(lsat_valid) <- band_names
-
-polys <- read_sf(paste0(in_dir, year_train, site, "training.shp")) %>% 
-  mutate(class_fct = as.numeric(as.factor(class))) %>%
-  as("Spatial") %>%
-  spTransform(crs(lsat)) %>%
-  st_as_sf()
-
-validation_pts <- read_sf(paste0(in_dir, site, "reg_vld_pts.shp")) %>%
-  mutate(class = ifelse(class == "agricultur", "agriculture", 
-                        ifelse(class == "aquacultur", "aquaculture", class)),
-         class_fct = as.numeric(factor(class))) %>%
-  as("Spatial") %>%
-  spTransform(crs(lsat))
-
-
 #-----------------------------#
 # Unsupervised classification #
 #-----------------------------#
 # Using kmeans clustering
 
-v <- getValues(lsat_valid)
+v <- getValues(lsat[[1:7, 11, 12]])
 i <- which(!is.na(v))
-kmeans_rast <- kmeans(v[i], 12, iter.max = 100, nstart = 10)
+kmeans_rast <- kmeans(v[i], 10, iter.max = 100, nstart = 10)
 
 kmeans_raster <- raster(lsat)
 kmeans_raster[i] <- kmeans_rast$cluster
@@ -86,10 +69,8 @@ kmeans_rc_mat <- matrix(c(0.9, 1.1, 4,
 
 kmeans_raster <- reclassify(kmeans_raster, kmeans_rc_mat)
 
-validateMap(kmeans_raster, validation_pts, responseCol = 'class_fct', 
-            1000, mode = "classification")
+writeRaster(kmeans_raster, "/home/jbukoski/Desktop/test.tif", format = "GTiff", overwrite = TRUE)
 
-plot(lsat_pred)
 
 # Unsupervised classification using randomForest classification w/ kmeans
 
