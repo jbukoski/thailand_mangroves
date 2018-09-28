@@ -12,6 +12,8 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 
 site <- "nakorn_"
 
+# years
+
 #-----------------------------------
 # CODE TESTING 
 
