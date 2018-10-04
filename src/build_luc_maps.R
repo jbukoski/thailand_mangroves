@@ -56,7 +56,7 @@ p1 <- ggplot() +
         panel.border = element_rect(colour = "black", fill = NA),
         axis.title.x = element_blank(),
         axis.title.y = element_blank()) +
-  geom_text(aes(x = 99.02, y = 8.11, label= "1987"))
+  geom_text(aes(x = 99.02, y = 8.11, label= "1989"))
 
 p2 <- ggplot() +
   geom_sf(data = thailand, fill = "#f9f0f9") +
