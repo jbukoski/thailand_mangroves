@@ -10,7 +10,7 @@ library(gridExtra)
 in_dir <- "/home/jbukoski/research/data/thailand_stocks/input/site_map/"
 out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 
-site <- "krabi_"
+site <- "nakorn_"
 
 # Read in rasters
 
