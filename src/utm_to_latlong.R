@@ -40,3 +40,30 @@ wgs84_coords <- spTransform(utm_coords, CRS("+proj=longlat")) %>%
 
 write_csv(wgs84_coords, 
           paste0(out_dir, 'plot_coords.csv'))
+
+
+# Code to convert Rich's Trang data
+# 
+# library(rgdal)
+# library(tidyverse)
+# library(measurements)
+# library(leaflet)
+# 
+# dat <- read_csv("/home/jbukoski/Desktop/plots.csv", col_names = TRUE) %>%
+#   mutate(latitude = gsub("['\"^0]", "", latitude),
+#          longitude = gsub("['\"]", "", longitude)) %>%
+#   mutate(latitude = gsub("[?]", " ", latitude),
+#          longitude = gsub("[?']", " ", longitude)) %>%
+#   filter(grepl("^[0-9]+ [0-9]+.[0-9]+$", latitude)) %>%
+#   mutate(latitude = as.numeric(measurements::conv_unit(latitude, from = "deg_dec_min", to = "dec_deg")),
+#          longitude = as.numeric(measurements::conv_unit(longitude, from = "deg_dec_min", to = "dec_deg")))
+# 
+# xy <- dat[, 1:2]
+# 
+# write_csv(dat, "/home/jbukoski/Desktop/plots_adjusted.csv")
+# 
+# spdf <- SpatialPointsDataFrame(coords = xy, data = dat)
+# 
+# leaflet() %>%
+#   addTiles() %>%
+#   addMarkers(dat$longitude, dat$latitude)
