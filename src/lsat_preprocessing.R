@@ -57,6 +57,11 @@ ndwi <- reclassify(ndwi, rc_mat)
 lsat <- stack(lsat, lsat_tc, ndvi, ndwi)
 names(lsat) <- c(names(lsat)[1:10], 'ndvi', 'ndwi')
 
+#-------------------------
+# Generate PCA transformation
+
+
+
 #--------------------------
 # Generate texture metrics
 

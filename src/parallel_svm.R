@@ -17,7 +17,7 @@ site <- "nakorn_"
 #-----------------------------------
 # CODE TESTING 
 
-useCores <- detectCores() - 1
+useCores <- detectCores()
 cl <- makeCluster(useCores)
 registerDoParallel(cl)
 
@@ -28,7 +28,15 @@ band_names <- c("blue", "green", "red", "nir", "swir1", "swir2", "srtm",
 #years <- c("1987_")
 years <- c("1987_", "1997_", "2007_", "2017_")
 
+# Clear sink
+
+writeLines(c(""), "/home/jbukoski/Desktop/log.txt")
+
+# Run parallel loop
+
 areas <- foreach(i=1:length(years)) %dopar% {
+  
+  sink("/home/jbukoski/Desktop/log.txt", append=TRUE)
   
   library(e1071)
   library(raster)
@@ -60,12 +68,16 @@ areas <- foreach(i=1:length(years)) %dopar% {
   # Classification for LSAT data #
   #------------------------------#
   
+  print(paste("extracting data from raster...", Sys.time(), years[i]))
+  
   rast <- raster::extract(lsat, training)
   names(rast) <- training$class
   
   train_df <- plyr::ldply(rast, rbind)
   colnames(train_df) <- c("class", band_names)
   train_df$class <- as.factor(train_df$class)
+  
+  print(paste("training model...", Sys.time(), years[i]))
   
   svm_lsat <- svm(class ~ blue + green + red + nir + 
                   ndvi + ndwi + brightness + greenness + avg3, 
@@ -76,12 +88,18 @@ areas <- foreach(i=1:length(years)) %dopar% {
   asia_eqArea <- crs("+proj=aea +lat_1=15 +lat_2=65 +lat_0=30 +lon_0=95 +x_0=0 
                      +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
   
+  print(paste("classifying imagery...", Sys.time(), years[i]))
+  
   lsat_pred <- raster::predict(lsat, svm_lsat) %>%
     focal(w = threes, fun = modal) %>%
     projectRaster(crs = asia_eqArea, method = "ngb")
   
-  write_raster(lsat_pred, paste0(out_dir, site, year[i], "classified.tif"), 
+  print(paste("writing raster...", Sys.time(), years[i]))
+  
+  writeRaster(lsat_pred, paste0(out_dir, site, years[i], "svm.tif"), 
                format = "GTiff", overwrite = TRUE)
+  
+  print(paste("aggregating values...", Sys.time(), years[i]))
   
   aggregate(getValues(area(lsat_pred, weights = FALSE)),
             by = list(getValues(lsat_pred)), sum)
@@ -90,6 +108,14 @@ areas <- foreach(i=1:length(years)) %dopar% {
 
 summary <- areas %>%
   reduce(left_join, by = "Group.1") %>%
-  set_colnames(c("Class", gsub("_", "", years)))
-
+  set_colnames(c("Class", gsub("_", "", years))) %>%
+  t %>%
+  as.data.frame %>%
+  mutate(year = rownames(.)) %>%
+  filter(year != "Class") %>%
+  gather(key = "class", value = "value", -year)
                
+
+ggplot(data = summary, 
+       aes(x = year, y = value, colour = class, group = class)) +
+  geom_line()

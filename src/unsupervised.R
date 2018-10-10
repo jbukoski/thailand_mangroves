@@ -48,29 +48,52 @@ band_names <- c("blue", "green", "red", "nir", "swir1", "swir2", "srtm",
 lsat <- brick(paste0(in_dir, year_train, site, "lsat.tif"))
 names(lsat) <- band_names
 
+# PCA Transformation
+
+set.seed(1)
+
+# red_swir <- lsat[[3]] / lsat[[5]]
+# swir_nir <- lsat[[5]] / lsat[[4]]
+# 
+# lsat <- stack(lsat[[3:5]], red_swir, swir_nir) 
+
+sr <- sampleRandom(lsat[[7:11]], 50000)
+plot(sr[, c(3,4)])
+
+pca <- prcomp(sr, scale = TRUE)
+plot(pca)
+screeplot(pca)
+
+pci <- predict(lsat, pca, index = 1:length(pca))
+
 #-----------------------------#
 # Unsupervised classification #
 #-----------------------------#
 # Using kmeans clustering
 
-v <- getValues(lsat[[1:7, 11, 12]])
+v <- getValues(pci)
 i <- which(!is.na(v))
-kmeans_rast <- kmeans(v[i], 10, iter.max = 100, nstart = 10)
+kmeans_rast <- kmeans(v[i], 20, iter.max = 1000, nstart = 25, algorithm = "MacQueen")
 
 kmeans_raster <- raster(lsat)
 kmeans_raster[i] <- kmeans_rast$cluster
 plot(kmeans_raster)
 
-kmeans_rc_mat <- matrix(c(0.9, 1.1, 4, 
-                          1.9, 2.1, 2,
-                          2.9, 3.1, 3,
-                          3.9, 4.1, 1,
-                          4.9, 5.1, 5), ncol = 3, byrow = TRUE)
-
-kmeans_raster <- reclassify(kmeans_raster, kmeans_rc_mat)
-
 writeRaster(kmeans_raster, "/home/jbukoski/Desktop/test.tif", format = "GTiff", overwrite = TRUE)
 
+threes <- matrix(1, nrow = 5, ncol = 5)
+
+rast <- focal(kmeans_raster, threes, fun = modal)
+
+# Reclassification
+
+# kmeans_rc_mat <- matrix(c(0.9, 1.1, 4, 
+#                           1.9, 2.1, 2,
+#                           2.9, 3.1, 3,
+#                           3.9, 4.1, 1,
+#                           4.9, 5.1, 5), ncol = 3, byrow = TRUE)
+# 
+# kmeans_raster <- reclassify(kmeans_raster, kmeans_rc_mat)
 
 # Unsupervised classification using randomForest classification w/ kmeans
 
