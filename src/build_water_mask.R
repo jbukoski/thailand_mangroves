@@ -68,35 +68,36 @@ water_mask <- reclassify(water_mask, rc_mat_3)
 plot(water_mask)
 
 #---------------------------------------------------------------
-# Additional steps for iterative masking (in the case that the
-# original water mask is insufficient)
+# Additional steps for iterative masking 
+# (in the case that the original water mask is insufficient)
+# Needed this section for nakorn_1987 and nakorn_1997.
 
-water <- lsat_final == 5
-
-water <-  projectRaster(water, crs = projection(water_mask), method = "ngb") # SVM classified raster to update mask with
-water <- resample(water, water_mask, method = "ngb")
-
-water_clump <- clump(water, directions = 8, gaps = TRUE)
-
-clump_df <- data.frame(freq(water_clump)) %>%
-  arrange(-count)
-
-idx <- clump_df[clump_df$count > 1200, ]
-
-water_add <- water_clump %in% idx$value[2:length(idx$value)]
-
-mat_rc_add <- matrix(c(0.9, 1.1, 0,
-                       NA, NA, 1), ncol = 3, byrow = TRUE)
-water_mask <- reclassify(water_mask, mat_rc_add)
-
-water_mask_new <- water_add + water_mask
-
-final_mask_clump <- clump((water_mask_new != 1), directions = 8, gaps = TRUE)
-water_mask <- focal((final_mask_clump == 1), w = threes, fun = modal)
-
-# water_mask <- focal(water_mask, w = threes, fun = modal) # In case of extra filtering
-
-plot(water_mask)
+# water <- lsat_final == 5
+# 
+# water <-  projectRaster(water, crs = projection(water_mask), method = "ngb") # SVM classified raster to update mask with
+# water <- resample(water, water_mask, method = "ngb")
+# 
+# water_clump <- clump(water, directions = 8, gaps = TRUE)
+# 
+# clump_df <- data.frame(freq(water_clump)) %>%
+#   arrange(-count)
+# 
+# idx <- clump_df[clump_df$count > 1200, ]
+# 
+# water_add <- water_clump %in% idx$value[2:length(idx$value)]
+# 
+# mat_rc_add <- matrix(c(0.9, 1.1, 0,
+#                        NA, NA, 1), ncol = 3, byrow = TRUE)
+# water_mask <- reclassify(water_mask, mat_rc_add)
+# 
+# water_mask_new <- water_add + water_mask
+# 
+# final_mask_clump <- clump((water_mask_new != 1), directions = 8, gaps = TRUE)
+# water_mask <- focal((final_mask_clump == 1), w = threes, fun = modal)
+# 
+# # water_mask <- focal(water_mask, w = threes, fun = modal) # In case of extra filtering
+# 
+# plot(water_mask)
 
 #-----------------------------------
 # Write map to file

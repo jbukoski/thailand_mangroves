@@ -28,16 +28,16 @@ text_y <- 8.2
 
 thailand <- read_sf(paste0(in_dir, "thailand_boundary.shp"))
 
-svm1987 <- raster(paste0(out_dir, site, "1987_classified.tif")) %>%
+svm1987 <- raster(paste0(out_dir, site, "1987_svm.tif")) %>%
   projectRaster(crs = crs("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "))
 
-svm1997 <- raster(paste0(out_dir, site, "1997_classified.tif")) %>%
+svm1997 <- raster(paste0(out_dir, site, "1997_svm.tif")) %>%
   projectRaster(crs = crs("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "))
 
-svm2007 <- raster(paste0(out_dir, site, "2007_classified.tif")) %>%
+svm2007 <- raster(paste0(out_dir, site, "2007_svm.tif")) %>%
   projectRaster(crs = crs("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "))
 
-svm2017 <- raster(paste0(out_dir, site, "2017_classified.tif")) %>%
+svm2017 <- raster(paste0(out_dir, site, "2017_svm.tif")) %>%
   projectRaster(crs = crs("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "))
 
 # Produce data frames for plotting

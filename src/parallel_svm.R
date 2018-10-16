@@ -15,7 +15,7 @@ site <- "nakorn_"
 #-----------------------------------
 # CODE TESTING 
 
-useCores <- detectCores()
+useCores <- detectCores() - 1
 cl <- makeCluster(useCores)
 registerDoParallel(cl)
 
@@ -105,7 +105,7 @@ areas <- foreach(i=1:length(years)) %dopar% {
   
   print(paste("writing raster...", Sys.time(), years[i]))
   
-  writeRaster(lsat_pred, paste0(out_dir, site, years[i], "svm.tif"), 
+  writeRaster(lsat_final, paste0(out_dir, site, years[i], "svm.tif"), 
                format = "GTiff", overwrite = TRUE)
   
   print(paste("aggregating values...", Sys.time(), years[i]))
