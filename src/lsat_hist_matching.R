@@ -10,20 +10,20 @@ library(sp)
 #----------------------
 # Specify in/out directories
 
-raw_dir <- "/home/jbukoski/research/data/thailand_stocks/raw/"
-in_dir <- "/home/jbukoski/research/data/thailand_stocks/input/"
-out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
+# raw_dir <- "/home/jbukoski/research/data/thailand_stocks/raw/"
+# in_dir <- "/home/jbukoski/research/data/thailand_stocks/input/"
+# out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 
 #----------------------
 # Adjust the below values to output the correct datasets
 
-site <- "nakorn_"
-roi <- "ppm_" # kre_ or ppm_
+# site <- "nakorn_"
+# roi <- "ppm_" # kre_ or ppm_
 
 #---------------------------
 # Load 2017 LSAT as a template
 
-lsat2017 <- brick(paste0(raw_dir, "raw_", "2017_", site, "lsat.tif")) 
+lsat2017 <- brick(paste0(raw_dir, "raw_", year, site, "lsat.tif")) 
 lsatCRS <- crs(lsat2017)
 
 #---------------------------

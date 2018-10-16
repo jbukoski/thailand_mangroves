@@ -12,8 +12,6 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 
 site <- "nakorn_"
 
-# years
-
 #-----------------------------------
 # CODE TESTING 
 
@@ -43,7 +41,10 @@ areas <- foreach(i=1:length(years)) %dopar% {
   library(sf)
   library(tidyverse)
   
-  lsat <- brick(paste0(in_dir, years[i], site, "lsat.tif"))
+  h2oMask <- raster(paste0(out_dir, site, years[i], "water_mask.tif"))
+  
+  lsat <- brick(paste0(in_dir, years[i], site, "lsat.tif")) %>%
+    mask(h2oMask)
   names(lsat) <- band_names
   
   polys <- read_sf(paste0(in_dir, years[i], site, "training.shp")) %>% 
@@ -94,6 +95,14 @@ areas <- foreach(i=1:length(years)) %dopar% {
     focal(w = threes, fun = modal) %>%
     projectRaster(crs = asia_eqArea, method = "ngb")
   
+  rc_mat <- matrix(c(0.9, 1.1, 1,
+                     1.9, 2.1, 2,
+                     2.9, 3.1, 3,
+                     3.9, 4.1, 1,
+                     4.9, 5.1, 2), ncol = 3, byrow = TRUE)
+
+  lsat_final <- reclassify(lsat_pred, rc_mat)
+  
   print(paste("writing raster...", Sys.time(), years[i]))
   
   writeRaster(lsat_pred, paste0(out_dir, site, years[i], "svm.tif"), 
@@ -101,8 +110,8 @@ areas <- foreach(i=1:length(years)) %dopar% {
   
   print(paste("aggregating values...", Sys.time(), years[i]))
   
-  aggregate(getValues(area(lsat_pred, weights = FALSE)),
-            by = list(getValues(lsat_pred)), sum)
+  aggregate(getValues(area(lsat_final, weights = FALSE)),
+            by = list(getValues(lsat_final)), sum)
   
 }
 

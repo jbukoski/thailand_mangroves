@@ -19,8 +19,8 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 #----------------------
 # Adjust the below values to output the correct datasets
 
-year <- "1987_"
-site <- "nakorn_"
+# year <- "1987_"
+# site <- "nakorn_"
 
 # Enter 4TM, 5TM or OLI depending on input data sensor
 
@@ -57,11 +57,6 @@ ndwi <- reclassify(ndwi, rc_mat)
 lsat <- stack(lsat, lsat_tc, ndvi, ndwi)
 names(lsat) <- c(names(lsat)[1:10], 'ndvi', 'ndwi')
 
-#-------------------------
-# Generate PCA transformation
-
-
-
 #--------------------------
 # Generate texture metrics
 
@@ -84,6 +79,14 @@ texture_names <- c(names(lsat), "avg3", "avg5", "avg9", "var3", "var5", "var9")
 lsat <- stack(lsat, ndvi_avg_3, ndvi_avg_5, ndvi_avg_9, 
               ndvi_var_3, ndvi_var_5, ndvi_var_9)
 names(lsat) <- texture_names
+
+#------------------------------
+# Clean up excess variables
+
+rm(ndvi_avg_3, ndvi_avg_5, ndvi_avg_9, 
+   ndvi_var_3, ndvi_var_5, ndvi_var_9, 
+   lsat_tc, ndvi, ndwi, nines, fives,
+   rc_mat)
 
 #----------------------
 # Write out files to in_dir for feeding into build_classification scripts
