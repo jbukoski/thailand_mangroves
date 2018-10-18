@@ -22,8 +22,8 @@ out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 #----------------------
 # Adjust the below values to output the correct water mask
 
-site <- "nakorn_"
-year <- "1997_"
+site <- "krabi_"
+year <- "2017_"
 
 #----------------------
 # Load in data
@@ -40,7 +40,7 @@ ndwi <- rast[["ndwi"]]
 #--------------------
 # Reclassify based on water as < 0
 
-cutoff <- -0.09
+cutoff <- -0.25
 
 rc_mat <- matrix(c(-1, cutoff, NA,
                    cutoff, 1, 1), ncol = 3, byrow = TRUE)

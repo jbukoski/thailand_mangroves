@@ -102,7 +102,7 @@ registerDoParallel(cl)
 
 rast_stack <- list(lsat, lsat_valid)
 
-par_output <- foreach(i=1:length(rast_stack), packages = c("raster", "e1071")) %dopar% {
+par_output <- foreach(i=1:length(rast_stack)) %dopar% {
   library(e1071)
   library(raster)
   r <- rast_stack[[i]]

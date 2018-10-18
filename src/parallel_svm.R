@@ -10,7 +10,7 @@ library(magrittr)
 in_dir <- "/home/jbukoski/research/data/thailand_stocks/input/"
 out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 
-site <- "nakorn_"
+site <- "krabi_"
 
 #-----------------------------------
 # CODE TESTING 
@@ -23,7 +23,6 @@ band_names <- c("blue", "green", "red", "nir", "swir1", "swir2", "srtm",
                 "brightness", "greenness", "wetness", "ndvi", "ndwi",
                 "avg3", "avg5", "avg9", "var3", "var5", "var9")
 
-#years <- c("1987_")
 years <- c("1987_", "1997_", "2007_", "2017_")
 
 # Clear sink
@@ -38,7 +37,9 @@ areas <- foreach(i=1:length(years)) %dopar% {
   
   library(e1071)
   library(raster)
+  library(RStoolbox)
   library(sf)
+  library(spatialEco)
   library(tidyverse)
   
   h2oMask <- raster(paste0(out_dir, site, years[i], "water_mask.tif"))
@@ -51,6 +52,10 @@ areas <- foreach(i=1:length(years)) %dopar% {
     mutate(class_fct = as.numeric(as.factor(class))) %>%
     as("Spatial") %>%
     spTransform(crs(lsat)) %>%
+    st_as_sf("SpatialPolygons")
+  
+  pts <- spsample(as(polys, "Spatial"), n = 5000, "random") %>%
+    point.in.poly(polys) %>%
     st_as_sf()
   
   #----------------------------------
@@ -58,12 +63,15 @@ areas <- foreach(i=1:length(years)) %dopar% {
   
   seed <- round(runif(1, 1, 100000))
   set.seed(seed)
-  split <- 1
+  split <- 0.6
+  
+  idx <- sample.int(nrow(pts), nrow(pts)*split)
+  
+  train_pts <- pts[idx, ]
+  valid_pts <- pts[idx, ]
   
   train_idx <- sample.int(nrow(polys), nrow(polys)*split)
-  
   training <- polys[train_idx, ]
-  valid <- polys[-train_idx, ]
   
   #------------------------------#
   # Classification for LSAT data #
@@ -71,17 +79,27 @@ areas <- foreach(i=1:length(years)) %dopar% {
   
   print(paste("extracting data from raster...", Sys.time(), years[i]))
   
-  rast <- raster::extract(lsat, training)
+  rast <- raster::extract(lsat, 
+                          as(train_pts, "Spatial"),
+                          df = TRUE)
   names(rast) <- training$class
+  rast$class <- as.factor(train_pts$class)
   
-  train_df <- plyr::ldply(rast, rbind)
-  colnames(train_df) <- c("class", band_names)
-  train_df$class <- as.factor(train_df$class)
+  train_df <- rast
+  
+  # rast_vals_df <- plyr::ldply(rast, rbind)
+  # colnames(rast_vals_df) <- c("class", band_names)
+  # rast_vals_df$class <- as.factor(rast_vals_df$class)
+  # 
+  # idx <- sample.int(nrow(rast_vals_df), nrow(rast_vals_df) * 0.6)
+  # 
+  # train_df <- rast_vals_df[idx, ]
+  # valid_df <- rast_vals_df[-idx, ]
   
   print(paste("training model...", Sys.time(), years[i]))
   
   svm_lsat <- svm(class ~ blue + green + red + nir + 
-                  ndvi + ndwi + brightness + greenness + avg3, 
+                    ndvi + ndwi + brightness + greenness + avg3, 
                   data = train_df, cost = 1000, gamma = 1)
   
   threes <- matrix(1, nrow = 3, ncol = 3)
@@ -100,13 +118,13 @@ areas <- foreach(i=1:length(years)) %dopar% {
                      2.9, 3.1, 3,
                      3.9, 4.1, 1,
                      4.9, 5.1, 2), ncol = 3, byrow = TRUE)
-
+  
   lsat_final <- reclassify(lsat_pred, rc_mat)
   
   print(paste("writing raster...", Sys.time(), years[i]))
   
   writeRaster(lsat_final, paste0(out_dir, site, years[i], "svm.tif"), 
-               format = "GTiff", overwrite = TRUE)
+              format = "GTiff", overwrite = TRUE)
   
   print(paste("aggregating values...", Sys.time(), years[i]))
   
@@ -114,6 +132,9 @@ areas <- foreach(i=1:length(years)) %dopar% {
             by = list(getValues(lsat_final)), sum)
   
 }
+
+#-----------------------------
+# Aggregate statistics
 
 summary <- areas %>%
   reduce(left_join, by = "Group.1") %>%
