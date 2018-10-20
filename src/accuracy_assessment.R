@@ -1,6 +1,8 @@
-## Accuracy assessment
+# Accuracy assessment
 
 library(raster)
+library(rgdal)
+library(sf)
 library(tidyverse)
 
 #---------------------------------
@@ -14,6 +16,8 @@ site <- "krabi_"
 year <- "2017_"
 
 #---------------------------------
-# Script for assessing the accuracy of the classified imagery
 
-img <- brick(paste0(out_dir, site, year, "svm.tif"))
+acc <- readOGR(dsn = paste0(out_dir), layer = paste0(site, year, "accuracy"))
+
+table(acc$class, acc$ref_class)
+

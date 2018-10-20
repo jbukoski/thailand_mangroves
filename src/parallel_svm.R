@@ -63,15 +63,12 @@ areas <- foreach(i=1:length(years)) %dopar% {
   
   seed <- round(runif(1, 1, 100000))
   set.seed(seed)
-  split <- 0.6
-  
-  idx <- sample.int(nrow(pts), nrow(pts)*split)
-  
-  train_pts <- pts[idx, ]
-  valid_pts <- pts[idx, ]
+  split <- 1
   
   train_idx <- sample.int(nrow(polys), nrow(polys)*split)
+  
   training <- polys[train_idx, ]
+  valid <- polys[-train_idx, ]
   
   #------------------------------#
   # Classification for LSAT data #
@@ -79,13 +76,12 @@ areas <- foreach(i=1:length(years)) %dopar% {
   
   print(paste("extracting data from raster...", Sys.time(), years[i]))
   
-  rast <- raster::extract(lsat, 
-                          as(train_pts, "Spatial"),
-                          df = TRUE)
+  rast <- raster::extract(lsat, training)
   names(rast) <- training$class
-  rast$class <- as.factor(train_pts$class)
   
-  train_df <- rast
+  train_df <- plyr::ldply(rast, rbind)
+  colnames(train_df) <- c("class", band_names)
+  train_df$class <- as.factor(train_df$class)
   
   # rast_vals_df <- plyr::ldply(rast, rbind)
   # colnames(rast_vals_df) <- c("class", band_names)
@@ -98,8 +94,8 @@ areas <- foreach(i=1:length(years)) %dopar% {
   
   print(paste("training model...", Sys.time(), years[i]))
   
-  svm_lsat <- svm(class ~ blue + green + red + nir + 
-                    ndvi + ndwi + brightness + greenness + avg3, 
+  svm_lsat <- svm(class ~ blue + green + red + nir + swir1 + swir2 +
+                    brightness + greenness + wetness + ndvi + ndwi, 
                   data = train_df, cost = 1000, gamma = 1)
   
   threes <- matrix(1, nrow = 3, ncol = 3)
