@@ -13,12 +13,12 @@ source("./src/helper_funcs.R")
 in_dir <- "/home/jbukoski/research/data/thailand_stocks/input/"
 out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 
-site <- "krabi_"
+site <- "nakorn_"
 year <- "2017_"
 
 #---------------------------------
 
-acc <- readOGR(dsn = paste0(out_dir), layer = paste0(site, year, "accuracy"))
+acc <- readOGR(dsn = paste0(out_dir, site, year, "valid_pts/"), layer = "valid_pts")
 rast <- raster(paste0(out_dir, site, year, "svm.tif"))
 
 mat <- table(acc$class, acc$ref_class) %>%

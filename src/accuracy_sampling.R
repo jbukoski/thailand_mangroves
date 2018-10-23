@@ -12,7 +12,7 @@ source("./src/helper_funcs.R")
 in_dir <- "/home/jbukoski/research/data/thailand_stocks/input/"
 out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 
-site <- "krabi_"
+site <- "nakorn_"
 year <- "2017_"
 
 #--------------------------------
@@ -26,7 +26,7 @@ seed <- 04021989
 img <- brick(paste0(out_dir, site, year, "svm.tif")) %>%
   projectRaster(crs = CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "), method = "ngb")
 
-vals <- getValues(img$krabi_2017_svm) %>%
+vals <- getValues(img) %>%
   tibble() %>%
   rename(value = ".") %>%
   mutate(rast_id = row_number(),
