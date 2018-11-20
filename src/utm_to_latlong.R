@@ -23,11 +23,21 @@ dat <- read_excel(paste0(in_dir, site, '_data.xlsx'),
   set_colnames(tolower(colnames(.))) %>%
   set_colnames(gsub(" ", "_", colnames(.))) %>%
   set_colnames(gsub("[(),]", "", colnames(.))) %>%
-  select(longitude, latitude) %>%
+  select(site, plot, subplot, longitude, latitude) %>%
   mutate(longitude = as.numeric(longitude),
          latitude = as.numeric(latitude))
 
 # Convert data
+
+xy <- cbind(dat$latitude, dat$longitude)
+
+spdf <- SpatialPointsDataFrame(coords = xy, data = select(dat, site, plot, subplot),
+                               proj4string = CRS("+proj=utm +zone=47N")) %>%
+  spTransform(CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"))
+
+writeOGR(spdf, out_dir, "meta", driver = "ESRI Shapefile", overwrite = TRUE)
+
+#-----------------------
 
 utm_coords <- SpatialPoints(cbind(dat$latitude, dat$longitude), 
                             proj4string = CRS("+proj=utm +zone=47N")) 

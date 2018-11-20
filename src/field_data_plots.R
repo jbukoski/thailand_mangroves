@@ -159,7 +159,7 @@ grid.arrange(p_bd, p_poc, p_c_dens, nrow = 1)
 #-----------------------------------------------------------------------------
 # Generate plots
 
-soil_plot %>%
+c_2_plot %>%
   filter(plot <= 7) %>%
   ggplot(aes(x = plot, y = plot_soc, col = site)) + 
   geom_point(size = 3) + 

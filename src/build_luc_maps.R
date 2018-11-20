@@ -10,20 +10,23 @@ library(gridExtra)
 in_dir <- "/home/jbukoski/research/data/thailand_stocks/input/site_map/"
 out_dir <- "/home/jbukoski/research/data/thailand_stocks/output/"
 
-site <- "nakorn_"
+site <- "krabi_"
 
-# bounds for Krabi
-# xlims <- c(98.82, 99.05)
-# ylims <- c(7.825, 8.12)
-# text_x <- 99.04
-# text_y <- 8.11
+if(site == "krabi_") {
 
-# bounds for Nakorn
-xlims <- c(99.91, 100.32)
-ylims <- c(8.16, 8.63)
-text_x <- 99.95
-text_y <- 8.2
-
+  xlims <- c(98.82, 99.05)
+  ylims <- c(7.825, 8.12)
+  text_x <- 99.04
+  text_y <- 8.11
+  
+} else if(site == "nakorn_") {
+  
+  xlims <- c(99.91, 100.32)
+  ylims <- c(8.16, 8.63)
+  text_x <- 99.95
+  text_y <- 8.2
+  
+}
 # Read in rasters
 
 thailand <- read_sf(paste0(in_dir, "thailand_boundary.shp"))

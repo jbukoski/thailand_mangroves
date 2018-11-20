@@ -221,7 +221,7 @@ soil <- raw_soil %>%
 
 
 
-raw_aqua <- raw_aqua %>%
+aqua <- raw_aqua %>%
   mutate(int_volume = ((int_b/100) - (int_a/100)) * 10000,
          soc_per_ha = int_volume * c_dens)
 
@@ -238,18 +238,19 @@ trees_structure <- trees %>%
   select(site, plot, subplot, dbh_cm, status, sps_code, basal_area) %>%
   group_by(site, plot, subplot) %>%
   mutate(subplot_dbh = mean(dbh_cm),
-         subplot_ba = sum(basal_area),
-         subplot_n = n()) %>%
+         subplot_ba = 10000 * sum(basal_area) / plot_size,
+         subplot_n = 10000 * n() / plot_size) %>%
   select(site, plot, subplot, subplot_dbh, subplot_ba, subplot_n) %>%
   distinct %>%
   group_by(site, plot) %>%
   mutate(plot_dbh = mean(subplot_dbh),
          plot_dbh_se = sqrt(var(subplot_dbh) / n()),
-         plot_ba = 10000 * mean(subplot_ba) / plot_size,
-         plot_ba_se = 10000 * sqrt(var(subplot_ba) / n()) / plot_size,
-         plot_n = 10000 * mean(subplot_n) / plot_size,
-         plot_n_se = 10000 * sqrt(var(subplot_n) / n()) / plot_size) %>%
-  select(site, plot, plot_dbh, plot_dbh_se, plot_ba, plot_ba_se,
+         plot_ba = mean(subplot_ba),
+         plot_ba_se = sqrt(var(subplot_ba) / n()),
+         plot_n = mean(subplot_n),
+         plot_n_se = sqrt(var(subplot_n) / n())) %>%
+  select(site, plot, subplot, subplot_dbh, subplot_ba, subplot_n,
+         plot_dbh, plot_dbh_se, plot_ba, plot_ba_se,
          plot_n, plot_n_se) %>%
   distinct #%>%
   # group_by(site) %>%
@@ -281,17 +282,18 @@ saps_structure <- saps %>%
 # Compute rel density and rel dominance first, rel frequency later
 
 sps_rii <- trees %>%
-  group_by(site) %>%
+  group_by(site, plot, subplot) %>%
   mutate(site_n = n(), 
          site_ba = sum(basal_area)) %>%
-  group_by(site, sps_code) %>%
+  group_by(site, plot, subplot, sps_code) %>%
   mutate(sps_ba = sum(basal_area),
          sps_n = n(),
          rel_sps_ba = mean(sps_ba)/mean(site_ba) * 100,
          rel_sps_n = mean(sps_n)/mean(site_n) * 100,
          rel_imp = (rel_sps_ba + rel_sps_n) / 2) %>%
-  select(site, sps_code, genus, species, rel_sps_ba, rel_sps_n, rel_imp) %>%
-  arrange(site, -rel_imp)
+  select(site, plot, subplot, sps_code, genus, species, rel_sps_ba, rel_sps_n, rel_imp) %>%
+  arrange(site, plot, subplot, -rel_imp) %>%
+  distinct
 
 # Compute relative frequency
 
@@ -343,7 +345,7 @@ plot_biomass <- biomass %>%
   summarise(ttl_tau = mean(area) * ( sum(biomass) / plot_size),
             agb_tau = mean(area) * ( sum(agb) / plot_size),
             bgb_tau = mean(area)* ( sum(bgb) / plot_size)) %>%
-  group_by(site, plot) %>%
+  group_by(site, plot, subplot) %>%
   left_join(site_areas, by = "site") %>%
   mutate(avg_plot_ttl = mean(ttl_tau),
          avg_plot_agb = mean(agb_tau),
@@ -357,7 +359,7 @@ plot_biomass <- biomass %>%
          plot_ttl_ha_se = 10 * avg_plot_ttl_se / area,
          plot_agb_ha_se = 10 * avg_plot_agb_se / area,
          plot_bgb_ha_se = 10 * avg_plot_bgb_se / area) %>%
-  select(site, plot, plot_ttl_ha, plot_ttl_ha_se,
+  select(site, plot, subplot, plot_ttl_ha, plot_ttl_ha_se,
          plot_agb_ha, plot_agb_ha_se,
          plot_bgb_ha, plot_bgb_ha_se) %>%
   distinct
@@ -417,10 +419,10 @@ soil_summary <- soil %>%
   mutate(subplot_c = sum(soc_per_ha)) %>%
   select(site, plot, subplot, subplot_c) %>%
   distinct() %>%
-  group_by(site, plot) %>%
+  group_by(site, plot, subplot) %>%
   mutate(plot_c = mean(subplot_c),
          plot_c_se = sqrt(var(subplot_c) / n())) %>%
-  select(site, plot, plot_c, plot_c_se) %>%
+  select(site, plot, subplot, plot_c, plot_c_se) %>%
   distinct
 
 #-----------------------
@@ -651,3 +653,4 @@ summary(bgc_signif) # significant difference at p < 0.01
 print(cwd_signif) 
 summary(soc_signif) # significant difference at p < 0.01
 summary(ttl_signif) 
+
