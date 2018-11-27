@@ -192,10 +192,139 @@ plot_biomass <- biomass %>%
          plot_bgb_ha, plot_bgb_ha_se) %>%
   distinct
 
+#--------------------------------------------------
+#Species classification
+
+sps_rii_init <- trees %>%
+  group_by(site, plot, subplot) %>%
+  mutate(site_n = n(), 
+         site_ba = sum(basal_area)) %>%
+  group_by(site, plot, subplot, sps_code) %>%
+  mutate(sps_ba = sum(basal_area),
+         sps_n = n(),
+         rel_sps_ba = mean(sps_ba)/mean(site_ba) * 100,
+         rel_sps_n = mean(sps_n)/mean(site_n) * 100,
+         rel_imp = (rel_sps_ba + rel_sps_n) / 2) %>%
+  select(site, plot, subplot, sps_code, genus, species, rel_sps_ba, rel_sps_n, rel_imp) %>%
+  arrange(site, plot, subplot, -rel_imp) %>%
+  distinct
+
+# Compute relative frequency
+
+subplot_sps_freq <- trees %>%
+  group_by(site, plot, subplot, sps_code) %>%
+  add_count(sps_code) %>%
+  rename(sps_n = n) %>%
+  select(site, plot, subplot, sps_code, sps_n) %>%
+  distinct
+
+subplot_freq <- trees %>% group_by(site, plot, subplot) %>%
+  add_count() %>%
+  select(site, plot, subplot, n) %>%
+  distinct
+
+freq <- subplot_sps_freq %>%
+  left_join(subplot_freq, by = c("site", "plot", "subplot")) %>%
+  mutate(rel_freq = sps_n / n * 100)
+
+# Join species importance indexes
+
+sps_rii <- sps_rii_init %>%
+  left_join(freq, by = c("site", "plot", "subplot", "sps_code")) %>%
+  select(site, plot, subplot, sps_code, genus, species, rel_sps_n, rel_freq, rel_sps_ba) %>%
+  distinct %>%
+  rowwise %>%
+  mutate(rel_imp = sum(rel_sps_n, rel_freq, rel_sps_ba) / 3,
+         subplot_id = paste0(substring(site, 1, 2), plot, subplot)) %>%
+  arrange(subplot_id, -rel_imp)
+
+# Determine subplot sps groups
+
+idx <- aggregate(rel_freq ~ subplot_id, data = sps_rii, max)
+
+dom_sps <- sps_rii %>%
+  filter(rel_freq %in% idx$rel_freq) %>%
+  mutate(dom_sps = ifelse(rel_imp > 80, paste0(sps_code), paste0(sps_code, "_mix")))
+
+#--------------------------------------------------
+# Processing soil
+
+soil <- raw_soil %>%
+  mutate(c_dens = bulk_density * (percent_c/100),
+         int_volume = ifelse(interval == 5, 
+                             ((avg_depth/100) - (100/100)) * 10000, 
+                             ((int_b/100) - (int_a/100)) * 10000),
+         soc_per_ha = int_volume * c_dens)
+
+soil_summary <- soil %>%
+  group_by(site, plot, subplot) %>%
+  mutate(subplot_soc = sum(soc_per_ha, na.rm = TRUE),
+         subplot_bd = mean(bulk_density),
+         subplot_c_dens = mean(c_dens),
+         subplot_poc = mean(percent_c)) %>%
+  select(site, plot, subplot, subplot_bd,
+         subplot_poc, subplot_c_dens, subplot_soc) %>%
+  distinct()
+
+
 #-------------------------------------------------------------------------------
 # Join to spatial
 
 full_data <- meta_clean %>% 
-  left_join(trees_structure, by = c("site" = "site", "plot" = "plot", "subplot" = "subplot")) %>%
-  left_join(plot_biomass, by = c("site" = "site", "plot" = "plot", "subplot" = "subplot")) %>%
-  select(-plot_ttl_ha_se, -plot_agb_ha_se, -plot_bgb_ha_se)
+  left_join(trees_structure, by = c("site", "plot", "subplot")) %>%
+  left_join(plot_biomass, by = c("site", "plot", "subplot")) %>%
+  left_join(soil_summary, by = c("site", "plot", "subplot")) %>%
+  select(-plot_ttl_ha_se, -plot_agb_ha_se, -plot_bgb_ha_se,
+         -plot_dbh, -plot_dbh_se, -plot_ba, -plot_ba_se, -plot_n, -plot_n_se) %>%
+  rename(subplot_ttl_ha = plot_ttl_ha, subplot_agb_ha = plot_agb_ha, subplot_bgb_ha = plot_bgb_ha) %>%
+  mutate(subplot_id = paste0(substring(site, 1, 2), plot, subplot),
+         plot_id = paste0(substring(site, 1,2), plot)) %>%
+  left_join(dom_sps, by = c("site", "plot", "subplot"))
+
+#write_csv(full_data, "/home/jbukoski/Desktop/full_coords.csv")
+
+nakorn <- full_data %>%
+  filter(site == "Nakorn") %>%
+  drop_na
+
+krabi <- full_data %>%
+  filter(site == "Krabi") %>%
+  drop_na
+
+plot(as.factor(full_data$dom_sps), full_data$subplot_ttl_ha)
+
+#-------------------------------------------------------------------------------
+
+coords <- full_data %>%
+  filter(site == "Nakorn", plot != 3) %>%
+  drop_na() %>%
+  as("Spatial")
+  
+nb <- knn2nb(knearneigh(coords, k = round(nrow(coords)*0.3, 0)))
+
+summary(nb)
+
+nbm <- nb2mat(nb, style = "B")
+nbw <- nb2listw(nb, style='B')
+nbw
+
+mc <- moran.mc(coords$dom_sps, nbw, nsim=99)
+mc
+
+plot(mc)
+
+full_data %>% 
+  #filter(site == "Krabi") %>% 
+  ggplot(aes(subplot_ttl_ha, subplot_poc, group = plot)) + 
+  geom_point()
+
+test <- lm(subplot_ttl_ha ~ subplot_poc + site, data = full_data)
+
+
+
+test <- lm(subplot_poc ~ dom_sps, data = krabi)
+
+test <- lme(subplot_c_dens ~ dom_sps + plot, data = nakorn, random = ~1|plot)
+
+
+

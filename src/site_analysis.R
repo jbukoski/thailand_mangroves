@@ -281,7 +281,7 @@ saps_structure <- saps %>%
 # Compute relative importance index for each species at the site level
 # Compute rel density and rel dominance first, rel frequency later
 
-sps_rii <- trees %>%
+sps_rii_init <- trees %>%
   group_by(site, plot, subplot) %>%
   mutate(site_n = n(), 
          site_ba = sum(basal_area)) %>%
@@ -297,35 +297,40 @@ sps_rii <- trees %>%
 
 # Compute relative frequency
 
-freq <- trees %>%
-  select(site, plot, sps_code) %>%
-  distinct %>%
-  mutate(presence = 1)
+subplot_sps_freq <- trees %>%
+  group_by(site, plot, subplot, sps_code) %>%
+  add_count(sps_code) %>%
+  rename(sps_n = n) %>%
+  select(site, plot, subplot, sps_code, sps_n) %>%
+  distinct
 
-freq_frame <- trees %>%
-  distinct(site, plot) %>%
-  left_join(expand(trees, plot, sps_code), by = "plot") %>%
-  left_join(freq, by = c("site", "plot", "sps_code")) %>%
-  mutate(presence = ifelse(is.na(presence), 0, presence))
+subplot_freq <- trees %>% group_by(site, plot, subplot) %>%
+  add_count() %>%
+  select(site, plot, subplot, n) %>%
+  distinct
 
-rel_freq <- freq_frame %>%
-  group_by(site, sps_code) %>%
-  summarise(sps_n = sum(presence),
-         ttl_n = n(),
-         rel_freq = 100 * sps_n / ttl_n) %>%
-  select(site, sps_code, rel_freq) %>%
-  filter(rel_freq > 0) %>%
-  arrange(site, -rel_freq)
+freq <- subplot_sps_freq %>%
+  left_join(subplot_freq, by = c("site", "plot", "subplot")) %>%
+  mutate(rel_freq = sps_n / n * 100)
 
 # Join species importance indexes
 
-sps_rii <- sps_rii %>%
-  left_join(rel_freq, by = c("site", "sps_code")) %>%
-  select(site, sps_code, genus, species, rel_sps_n, rel_freq, rel_sps_ba) %>%
+sps_rii <- sps_rii_init %>%
+  left_join(freq, by = c("site", "plot", "subplot", "sps_code")) %>%
+  select(site, plot, subplot, sps_code, genus, species, rel_sps_n, rel_freq, rel_sps_ba) %>%
   distinct %>%
   rowwise %>%
-  mutate(rel_imp = sum(rel_sps_n, rel_freq, rel_sps_ba) / 3) %>%
-  arrange(site, -rel_imp)
+  mutate(rel_imp = sum(rel_sps_n, rel_freq, rel_sps_ba) / 3,
+         subplot_id = paste0(substring(site, 1, 2), plot, subplot)) %>%
+  arrange(subplot_id, -rel_imp)
+
+# Determine subplot sps groups
+
+idx <- aggregate(rel_imp ~ subplot_id, data = sps_rii, max)
+
+dom_sps <- sps_rii %>%
+  filter(rel_imp %in% idx$rel_imp) %>%
+  mutate(dom_sps = ifelse(rel_imp > 80, paste0(sps_code), paste0(sps_code, "_mix")))
 
 #-------------------------------------------------------------------------------
 
