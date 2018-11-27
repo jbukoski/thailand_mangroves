@@ -1,9 +1,10 @@
+library(lme4)
+library(magrittr)
 library(raster)
+library(readxl)
+library(sf)
 library(spdep)
 library(tidyverse)
-library(readxl)
-library(magrittr)
-library(sf)
 
 #----------------------
 # Load in helper functions & allometry functions
@@ -247,6 +248,62 @@ dom_sps <- sps_rii %>%
   mutate(dom_sps = ifelse(rel_imp > 80, paste0(sps_code), paste0(sps_code, "_mix")))
 
 #--------------------------------------------------
+# Plot classification by genus
+
+
+genus_rii_init <- trees %>%
+  group_by(site, plot, subplot) %>%
+  mutate(site_n = n(), 
+         site_ba = sum(basal_area)) %>%
+  group_by(site, plot, subplot, genus) %>%
+  mutate(sps_ba = sum(basal_area),
+         sps_n = n(),
+         rel_sps_ba = mean(sps_ba)/mean(site_ba) * 100,
+         rel_sps_n = mean(sps_n)/mean(site_n) * 100,
+         rel_imp = (rel_sps_ba + rel_sps_n) / 2) %>%
+  select(site, plot, subplot, genus, rel_sps_ba, rel_sps_n, rel_imp) %>%
+  arrange(site, plot, subplot, -rel_imp) %>%
+  distinct
+
+# Compute relative frequency
+
+subplot_genus_freq <- trees %>%
+  group_by(site, plot, subplot, genus) %>%
+  add_count(genus) %>%
+  rename(sps_n = n) %>%
+  select(site, plot, subplot, genus, sps_n) %>%
+  distinct
+
+subplot_freq <- trees %>% group_by(site, plot, subplot) %>%
+  add_count() %>%
+  select(site, plot, subplot, n) %>%
+  distinct
+
+freq <- subplot_genus_freq %>%
+  left_join(subplot_freq, by = c("site", "plot", "subplot")) %>%
+  mutate(rel_freq = sps_n / n * 100)
+
+# Join species importance indexes
+
+genus_rii <- genus_rii_init %>%
+  left_join(freq, by = c("site", "plot", "subplot", "genus")) %>%
+  select(site, plot, subplot, genus, rel_sps_n, rel_freq, rel_sps_ba) %>%
+  distinct %>%
+  rowwise %>%
+  mutate(rel_imp = sum(rel_sps_n, rel_freq, rel_sps_ba) / 3,
+         subplot_id = paste0(substring(site, 1, 2), plot, subplot)) %>%
+  arrange(subplot_id, -rel_imp)
+
+# Determine subplot sps groups
+
+idx <- aggregate(rel_imp ~ subplot_id, data = genus_rii, max)
+
+dom_sps <- genus_rii %>%
+  filter(rel_imp %in% idx$rel_imp) %>%
+  mutate(dom_sps = ifelse(rel_imp > 80, paste0(genus), paste0(genus, "_mix")))
+
+
+#--------------------------------------------------
 # Processing soil
 
 soil <- raw_soil %>%
@@ -308,7 +365,7 @@ nbm <- nb2mat(nb, style = "B")
 nbw <- nb2listw(nb, style='B')
 nbw
 
-mc <- moran.mc(coords$dom_sps, nbw, nsim=99)
+mc <- moran.mc(coords$subplot_ttl_ha, nbw, nsim=99)
 mc
 
 plot(mc)
@@ -318,13 +375,13 @@ full_data %>%
   ggplot(aes(subplot_ttl_ha, subplot_poc, group = plot)) + 
   geom_point()
 
-test <- lm(subplot_ttl_ha ~ subplot_poc + site, data = full_data)
+#------------------------------------------
+# Mixed model
 
+null <- lme4::lmer(subplot_soc ~ subplot_ttl_ha + (1|plot), 
+                   data = drop_na(krabi), REML = FALSE)
 
+lmm <- lme4::lmer(subplot_soc ~ subplot_ttl_ha + dom_sps + (1|plot), 
+                  data = drop_na(krabi), REML = FALSE)
 
-test <- lm(subplot_poc ~ dom_sps, data = krabi)
-
-test <- lme(subplot_c_dens ~ dom_sps + plot, data = nakorn, random = ~1|plot)
-
-
-
+anova(null, lmm)
