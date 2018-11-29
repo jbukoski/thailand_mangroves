@@ -241,15 +241,14 @@ sps_rii <- sps_rii_init %>%
 
 # Determine subplot sps groups
 
-idx <- aggregate(rel_freq ~ subplot_id, data = sps_rii, max)
+idx <- aggregate(rel_imp ~ subplot_id, data = sps_rii, max)
 
 dom_sps <- sps_rii %>%
-  filter(rel_freq %in% idx$rel_freq) %>%
+  filter(rel_imp %in% idx$rel_imp) %>%
   mutate(dom_sps = ifelse(rel_imp > 80, paste0(sps_code), paste0(sps_code, "_mix")))
 
 #--------------------------------------------------
 # Plot classification by genus
-
 
 genus_rii_init <- trees %>%
   group_by(site, plot, subplot) %>%
@@ -298,9 +297,9 @@ genus_rii <- genus_rii_init %>%
 
 idx <- aggregate(rel_imp ~ subplot_id, data = genus_rii, max)
 
-dom_sps <- genus_rii %>%
+dom_genus <- genus_rii %>%
   filter(rel_imp %in% idx$rel_imp) %>%
-  mutate(dom_sps = ifelse(rel_imp > 80, paste0(genus), paste0(genus, "_mix")))
+  mutate(dom_genus = ifelse(rel_imp > 80, paste0(substring(genus, 1, 2)), paste0(substring(genus, 1, 2), "_mix")))
 
 
 #--------------------------------------------------
@@ -336,19 +335,14 @@ full_data <- meta_clean %>%
   rename(subplot_ttl_ha = plot_ttl_ha, subplot_agb_ha = plot_agb_ha, subplot_bgb_ha = plot_bgb_ha) %>%
   mutate(subplot_id = paste0(substring(site, 1, 2), plot, subplot),
          plot_id = paste0(substring(site, 1,2), plot)) %>%
-  left_join(dom_sps, by = c("site", "plot", "subplot"))
+  left_join(select(dom_sps, rel_imp, site, plot, subplot, dom_sps), by = c("site", "plot", "subplot")) %>%
+  rename(sps_rii = rel_imp) %>%
+  left_join(select(dom_genus, rel_imp, site, plot, subplot, dom_genus), by = c("site", "plot", "subplot")) %>%
+  rename(genus_rii = rel_imp) 
 
-#write_csv(full_data, "/home/jbukoski/Desktop/full_coords.csv")
 
-nakorn <- full_data %>%
-  filter(site == "Nakorn") %>%
-  drop_na
-
-krabi <- full_data %>%
-  filter(site == "Krabi") %>%
-  drop_na
-
-plot(as.factor(full_data$dom_sps), full_data$subplot_ttl_ha)
+#writeOGR(as(full_data, "Spatial"), paste0(out_dir), layer = "processed_subplot_data.shp", driver = "ESRI Shapefile")
+#write_csv(full_data, paste0(out_dir, "processed_subplot_data.csv"))
 
 #-------------------------------------------------------------------------------
 

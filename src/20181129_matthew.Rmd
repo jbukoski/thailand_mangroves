@@ -1,0 +1,135 @@
+---
+title: "Initial analyses"
+author: "Jacob J. Bukoski"
+date: "November 28, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE, include=FALSE}
+
+library(leaflet)
+library(lme4)
+library(mapview)
+library(raster)
+library(sf)
+library(sp)
+library(tidyverse)
+
+```
+
+
+```{r echo = FALSE, message = FALSE, warning = FALSE}
+
+dat <- read_csv("/home/jbukoski/research/data/thailand_stocks/output/processed_subplot_data.csv")
+dat_sf <- read_sf(dsn = "/home/jbukoski/research/data/thailand_stocks/output/", 
+               layer = "processed_subplot_data.shp")
+
+krabi <- dat %>%
+  filter(site == "Krabi") %>%
+  drop_na()
+
+nakorn <- dat %>%
+  filter(site == "Nakorn") %>%
+  drop_na()
+
+```
+
+### Structure of datasets:
+
+- Krabi
+    - 7 transects
+        - 5 plots per transect, all with aboveground characteristics
+        - 4 plots per transect with soil and aboveground characteristics
+
+- Pak Panang
+    - 10 transects
+        - 5 plots per transect, all with aboveground characteristics
+        - 2 plots per transect with soil and aboveground characteristics
+            - Will collect additional 2 plots
+      
+### Locations of the data
+
+Basic visualization of where the data sits. Data are summarized at the plot level, and attached to the markers on the map.
+
+  - Can view plot-level data by clicking.
+  - Can also adjust basemap layer.
+
+```{r echo = FALSE}
+
+mapview(dat_sf, map.types = c("Esri.WorldImagery", "OpenStreetMap", "Esri.WorldTopoMap"))
+
+```
+
+### Initial passes and visualizations of the data
+
+#### Total biomass ~ Basal area @ plot level
+
+```{r, echo = FALSE}
+
+dat %>%
+  ggplot() +
+  geom_point(aes(x = subplot_ba, y = subplot_ttl_ha, col = site)) +
+  xlab("BA") +
+  ylab("Total Biomass (Mg/ha)")
+
+```
+
+#### Total biomass ~ dominant genus
+
+*Note*: Dominant genus is equally weighted importance index of frequency, dominance, and density at genus level. Dominant species is calculated in same fashion but at species level.
+
+```{r, echo = FALSE}
+
+dat %>%
+  ggplot() + 
+  geom_boxplot(aes(x = dom_genus, y = subplot_ttl_ha, col = site))
+
+```
+
+#### Bulk density ~ dominant genus
+
+```{r, echo = FALSE}
+
+dat %>% 
+  drop_na() %>%
+  ggplot() + 
+  geom_boxplot(aes(x = dom_genus, y = subplot_bd, col = site))
+
+```
+
+#### Percent organic carbon (%) ~ dominant genus 
+
+```{r, echo = FALSE}
+
+dat %>%
+  drop_na() %>%
+  ggplot() + 
+  geom_boxplot(aes(x = dom_genus, y = subplot_poc, col = site))
+
+```
+
+#### Soil carbon density (mg/cm^3) ~ dominant genus
+
+```{r, echo = FALSE}
+
+dat %>%
+  drop_na() %>%
+  ggplot() + 
+  geom_boxplot(aes(x = dom_genus, y = subplot_c_dens, col = site))
+
+```
+
+#### Soil carbon density (Mg/ha to mean soil depth) ~ dominant genus
+
+```{r, echo = FALSE}
+
+dat %>%
+  drop_na() %>%
+  ggplot() + 
+  geom_boxplot(aes(x = dom_genus, y = subplot_soc, col = site))
+
+```
