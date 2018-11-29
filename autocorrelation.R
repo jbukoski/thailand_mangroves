@@ -2,6 +2,7 @@ library(lme4)
 library(magrittr)
 library(raster)
 library(readxl)
+library(rgdal)
 library(sf)
 library(spdep)
 library(tidyverse)
@@ -336,13 +337,16 @@ full_data <- meta_clean %>%
   mutate(subplot_id = paste0(substring(site, 1, 2), plot, subplot),
          plot_id = paste0(substring(site, 1,2), plot)) %>%
   left_join(select(dom_sps, rel_imp, site, plot, subplot, dom_sps), by = c("site", "plot", "subplot")) %>%
-  rename(sps_rii = rel_imp) %>%
+  rename(sps_imp = rel_imp) %>%
   left_join(select(dom_genus, rel_imp, site, plot, subplot, dom_genus), by = c("site", "plot", "subplot")) %>%
-  rename(genus_rii = rel_imp) 
+  rename(genus_imp = rel_imp) 
 
 
-#writeOGR(as(full_data, "Spatial"), paste0(out_dir), layer = "processed_subplot_data.shp", driver = "ESRI Shapefile")
-#write_csv(full_data, paste0(out_dir, "processed_subplot_data.csv"))
+writeOGR(as(full_data, "Spatial"), paste0(out_dir), 
+         layer = "processed_subplot_data.shp", 
+         driver = "ESRI Shapefile", overwrite = TRUE)
+
+write_csv(full_data, paste0(out_dir, "processed_subplot_data.csv"))
 
 #-------------------------------------------------------------------------------
 
