@@ -39,7 +39,7 @@ writeOGR(spdf, out_dir, "meta", driver = "ESRI Shapefile", overwrite = TRUE)
 
 #-----------------------
 
-utm_coords <- SpatialPoints(cbind(dat$latitude, dat$longitude), 
+utm_coords <- SpatialPoints(cbind(dat$latitude, dat$longitude),
                             proj4string = CRS("+proj=utm +zone=47N")) 
 
 wgs84_coords <- spTransform(utm_coords, CRS("+proj=longlat")) %>%
